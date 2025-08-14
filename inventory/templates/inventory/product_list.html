@@ -1,0 +1,64 @@
+{% extends "inventory/base.html" %}
+
+{% block title %}Lista de Productos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Productos</h1>
+    <a href="{% url 'inventory:product_add' %}" class="btn btn-primary">Añadir Producto</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form action="{% url 'inventory:product_list' %}" method="get" class="row g-3">
+            <div class="col-md-6">
+                <input type="text" name="q" class="form-control" placeholder="Buscar por código o descripción..." value="{{ request.GET.q }}">
+            </div>
+            <div class="col-md-6">
+                <button type="submit" class="btn btn-secondary">Buscar</button>
+                <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<table class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Unidad de Medida</th>
+            <th>Stock Actual</th>
+            <th>Stock Mínimo</th>
+            <th>Precio Unitario</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for product in product_list %}
+        <tr>
+            <td>{{ product.code }}</td>
+            <td>{{ product.description }}</td>
+            <td>{{ product.unit_of_measurement.abbreviation }}</td>
+            <td>
+                {% if product.current_stock <= product.min_stock %}
+                    <span class="badge bg-danger">{{ product.current_stock }}</span>
+                {% else %}
+                    {{ product.current_stock }}
+                {% endif %}
+            </td>
+            <td>{{ product.min_stock }}</td>
+            <td>Bs. {{ product.unit_price|floatformat:2 }}</td>
+            <td>
+                <a href="{% url 'inventory:product_edit' product.pk %}" class="btn btn-sm btn-info">Editar</a>
+                <a href="{% url 'inventory:product_delete' product.pk %}" class="btn btn-sm btn-danger">Eliminar</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center text-muted">No se encontraron productos.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

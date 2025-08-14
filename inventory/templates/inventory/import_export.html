@@ -1,0 +1,39 @@
+{% extends "inventory/base.html" %}
+
+{% block title %}Importar/Exportar Datos{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4>Importar Datos</h4>
+            </div>
+            <div class="card-body">
+                <p>Importa productos o movimientos desde un archivo Excel.</p>
+                <form action="{% url 'inventory:import_export' %}" method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {{ import_form.as_p }}
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Importar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4>Exportar Datos</h4>
+            </div>
+            <div class="card-body">
+                <p>Exporta todos los datos de productos o movimientos a un archivo Excel.</p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'inventory:export_data' %}?file_type=products" class="btn btn-success">Exportar Productos (Excel)</a>
+                    <a href="{% url 'inventory:export_data' %}?file_type=movements" class="btn btn-success">Exportar Movimientos (Excel)</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

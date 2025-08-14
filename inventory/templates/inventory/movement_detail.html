@@ -1,0 +1,60 @@
+{% extends "inventory/base.html" %}
+
+{% block title %}Detalle de Movimiento{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Detalle del Movimiento No. {{ movement.movement_number }}</h4>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Fecha:</dt>
+                    <dd class="col-sm-9">{{ movement.date|date:"d M Y" }}</dd>
+
+                    <dt class="col-sm-3">Producto:</dt>
+                    <dd class="col-sm-9">{{ movement.product.description }} ({{ movement.product.code }})</dd>
+
+                    <dt class="col-sm-3">Tipo de Movimiento:</dt>
+                    <dd class="col-sm-9">
+                        {% if movement.movement_type.is_entry %}
+                            <span class="badge bg-success">{{ movement.movement_type.name }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">{{ movement.movement_type.name }}</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-3">Cantidad:</dt>
+                    <dd class="col-sm-9">{{ movement.quantity }}</dd>
+
+                    {% if movement.supplier %}
+                    <dt class="col-sm-3">Proveedor:</dt>
+                    <dd class="col-sm-9">{{ movement.supplier.name }}</dd>
+                    {% endif %}
+
+                    {% if movement.delivered_to %}
+                    <dt class="col-sm-3">Entregado a:</dt>
+                    <dd class="col-sm-9">{{ movement.delivered_to }}</dd>
+                    {% endif %}
+                    
+                    <dt class="col-sm-3">Precio Unitario:</dt>
+                    <dd class="col-sm-9">Bs. {{ movement.unit_price|floatformat:2 }}</dd>
+
+                    <dt class="col-sm-3">Precio Total:</dt>
+                    <dd class="col-sm-9">Bs. {{ movement.total_price|floatformat:2 }}</dd>
+                    
+                    {% if movement.notes %}
+                    <dt class="col-sm-3">Observaciones:</dt>
+                    <dd class="col-sm-9">{{ movement.notes }}</dd>
+                    {% endif %}
+                </dl>
+                <div class="mt-4">
+                    <a href="{% url 'inventory:movement_list' %}" class="btn btn-secondary">Volver a la Lista</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

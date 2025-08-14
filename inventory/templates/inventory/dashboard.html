@@ -1,0 +1,80 @@
+{% extends "inventory/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Dashboard</h1>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Productos Totales</h5>
+                    <p class="card-text fs-2">{{ total_products }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Movimientos Totales</h5>
+                    <p class="card-text fs-2">{{ total_movements }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Productos Bajo Stock</h5>
+                    <p class="card-text fs-2">{{ low_stock.count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Productos con Bajo Stock</h4>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for product in low_stock %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="{% url 'inventory:product_edit' product.pk %}">{{ product.description }} ({{ product.code }})</a>
+                            <span class="badge bg-danger rounded-pill">{{ product.current_stock }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item text-muted">No hay productos con bajo stock.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Últimos Movimientos</h4>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for movement in recent_movements %}
+                        <li class="list-group-item">
+                            <a href="{% url 'inventory:movement_detail' movement.pk %}" class="fw-bold">{{ movement.movement_number }}</a>
+                            - {{ movement.date|date:"d M Y" }} -
+                            <span class="text-muted">{{ movement.product.description }}</span>
+                            <br>
+                            {% if movement.movement_type.is_entry %}
+                                <span class="text-success">+ {{ movement.quantity }}</span> (Entrada)
+                            {% else %}
+                                <span class="text-danger">- {{ movement.quantity }}</span> (Salida)
+                            {% endif %}
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item text-muted">No hay movimientos recientes.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
