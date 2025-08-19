@@ -1,0 +1,30 @@
+# Elimina la línea 'version' (obsoleta en nuevas versiones)
+
+services:
+  web:
+    build: 
+      context: .  # Directorio donde está el Dockerfile
+      dockerfile: Dockerfile  # Nombre del archivo Dockerfile
+    volumes:
+      - .:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - PYTHONPATH=/app/src
+    working_dir: /app/src
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"  # Mapeo de puertos
+    depends_on:
+      - db
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: securepassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
