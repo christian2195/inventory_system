@@ -1,10 +1,14 @@
-from django.views.generic import ListView, DetailView, CreateView
+# src/apps/quotations/views.py
+from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.db.models import Sum
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect
 from .models import Quotation, QuotationItem
 from .forms import QuotationForm, QuotationItemFormSet
-from inventory.models import Product
+from apps.inventory.models import Product
+from apps.orders.models import Order, OrderItem
 
 class QuotationListView(LoginRequiredMixin, ListView):
     model = Quotation
@@ -34,7 +38,7 @@ class QuotationCreateView(LoginRequiredMixin, CreateView):
     model = Quotation
     form_class = QuotationForm
     template_name = 'quotations/quotation_form.html'
-    success_url = reverse_lazy('quotations')
+    success_url = reverse_lazy('quotations:list')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -53,7 +57,6 @@ class QuotationCreateView(LoginRequiredMixin, CreateView):
             self.object.created_by = self.request.user
             self.object.save()
             
-            # Calcular y guardar total
             total = 0
             instances = formset.save(commit=False)
             for instance in instances:
@@ -67,3 +70,62 @@ class QuotationCreateView(LoginRequiredMixin, CreateView):
             return super().form_valid(form)
         else:
             return self.render_to_response(self.get_context_data(form=form))
+
+class QuotationUpdateView(LoginRequiredMixin, UpdateView):
+    model = Quotation
+    form_class = QuotationForm
+    template_name = 'quotations/quotation_form.html'
+    success_url = reverse_lazy('quotations:list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['formset'] = QuotationItemFormSet(self.request.POST, instance=self.object)
+        else:
+            context['formset'] = QuotationItemFormSet(instance=self.object)
+        return context
+    
+    def form_valid(self, form):
+        context = self.get_context_data()
+        formset = context['formset']
+        
+        if formset.is_valid():
+            with transaction.atomic():
+                self.object = form.save()
+                formset.save()
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+@transaction.atomic
+def convert_to_order(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    
+    if request.method == 'POST':
+        with transaction.atomic():
+            order = Order.objects.create(
+                client=quotation.client,
+                order_number=f"ORD-{quotation.quotation_number}",
+            )
+            
+            for item in quotation.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price
+                )
+            
+            quotation.status = 'CONVERTED'
+            quotation.save()
+            
+            return redirect('orders:detail', pk=order.pk)
+            
+    return render(request, 'quotations/convert_confirm.html', {'quotation': quotation})
+
+@transaction.atomic
+def approve_quotation(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    quotation.status = 'APPROVED'
+    quotation.save()
+    return redirect('quotations:detail', pk=pk)

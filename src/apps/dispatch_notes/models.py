@@ -15,6 +15,15 @@ class DispatchNote(models.Model):
     license_plate = models.CharField(max_length=15)
     observations = models.TextField(blank=True)
 
+    def update_product_stock_on_dispatch(self):
+        """
+        Actualiza el stock de los productos para todos los ítems de esta nota.
+        """
+        for item in self.dispatchitem_set.all():
+            product = item.product
+            product.current_stock -= item.quantity
+            product.save()
+
 class DispatchItem(models.Model):
     dispatch_note = models.ForeignKey(DispatchNote, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

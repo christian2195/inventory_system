@@ -1,17 +1,12 @@
 # src/apps/movements/views.py
-from django.views.generic import ListView, CreateView
+from django.views.generic import ListView, CreateView, TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
-from .models import Movement, Entry  # Clean single import
-from apps.inventory.models import Product
-from django.views.generic import TemplateView
 from django.utils import timezone
 from datetime import timedelta
-from .models import Movement
-from django.forms import inlineformset_factory
-from .models import DispatchNote, DispatchItem
-from .forms import DispatchNoteForm, DispatchItemForm
-
+from .models import Movement, Entry  # Importaciones correctas
+from .forms import MovementForm
+from apps.inventory.models import Product
 
 class MovementListView(LoginRequiredMixin, ListView):
     model = Movement
@@ -39,33 +34,27 @@ class MovementCreateView(LoginRequiredMixin, CreateView):
     model = Movement
     form_class = MovementForm
     template_name = 'movements/movement_form.html'
-    success_url = reverse_lazy('movements')
-    
+    success_url = reverse_lazy('movements:list')
+
     def get_initial(self):
         initial = super().get_initial()
-        if product_id := self.request.GET.get('product_id'):
-            try:
-                product = Product.objects.get(id=product_id)
-                initial['product'] = product
-                initial['unit_price'] = product.last_price if product.last_price else 0
-            except Product.DoesNotExist:
-                pass
+        # Lógica de get_initial si es necesaria
         return initial
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
         movement = form.save()
         
-        # Actualizar último precio en el producto
         product = movement.product
-        product.last_price = movement.unit_price
+        # Asegúrate de que este campo exista en tu modelo de Producto
+        # product.last_price = movement.unit_price
         product.save()
         
         return super().form_valid(form)
 
 class EntryListView(ListView):
     model = Entry
-    template_name = 'movements/entry_list.html'  # Verify this template exists
+    template_name = 'movements/entry_list.html'
     context_object_name = 'entries'
 
 class ExitListView(ListView):
@@ -81,17 +70,12 @@ class MonthlyReportView(LoginRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Calculate date range (last 30 days)
         end_date = timezone.now()
         start_date = end_date - timedelta(days=30)
-        
-        # Get movements in date range
         movements = Movement.objects.filter(
             date__range=(start_date, end_date)
         ).select_related('product')
         
-        # Add to context
         context['movements'] = movements
         context['start_date'] = start_date
         context['end_date'] = end_date

@@ -1,7 +1,8 @@
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
-from django.db.models import Q
+from django.db.models import Q, F
+from django.shortcuts import get_object_or_404, redirect, render
 from .models import Product, Supplier, Warehouse
 from apps.inventory.forms import ProductForm
 
@@ -57,17 +58,28 @@ class ProductUpdateView(LoginRequiredMixin, UpdateView):
 
 class InventoryReportView(ListView):
     model = Product
-    template_name = 'inventory/report.html'  # Asegúrate de crear esta plantilla
+    template_name = 'inventory/report.html'
     context_object_name = 'products'
     
     def get_queryset(self):
-        # Personaliza el queryset si es necesario
-        return Product.objects.filter(...)
+        # Filtra para obtener productos con stock crítico
+        return Product.objects.annotate(
+            stock_difference=F('min_stock') - F('current_stock')
+        ).filter(current_stock__lt=F('min_stock')).order_by('-stock_difference')
 
 def request_replenishment(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    # Aquí va tu lógica para manejar la solicitud
+    # Lógica para manejar la solicitud de reposición
+    # Por ejemplo, podrías crear un registro de un movimiento especial,
+    # enviar un correo electrónico al proveedor o registrar una alerta.
+    
+    # Aquí puedes añadir la lógica de negocio real.
     # Por ejemplo:
-    # product.request_replenishment()
-    # return redirect('inventory:detail', pk=product.pk)
-    return redirect('inventory:list')  # Cambia esto por tu lógica real
+    # new_movement = Movement.objects.create(
+    #     product=product,
+    #     quantity=product.min_stock - product.current_stock,
+    #     movement_type='REQUEST'
+    # )
+    
+    # Redireccionar de vuelta a la página del producto
+    return redirect('inventory:detail', pk=product.pk)

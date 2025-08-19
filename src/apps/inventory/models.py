@@ -12,6 +12,7 @@ class Product(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
     class Meta:
         app_label = 'inventory' 
+
 class Supplier(models.Model):
     name = models.CharField(max_length=100)
     contact = models.CharField(max_length=100)

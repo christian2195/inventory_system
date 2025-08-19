@@ -5,4 +5,5 @@ app_name = 'dashboard'
 
 urlpatterns = [
     path('', views.DashboardView.as_view(), name='index'),
+    path('request_replenishment/<int:pk>/', views.request_replenishment, name='request_replenishment'),
 ]
