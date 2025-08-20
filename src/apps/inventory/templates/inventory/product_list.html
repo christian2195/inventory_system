@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <h2>Lista de Productos</h2>
+    <a href="{% url 'inventory:create' %}" class="btn btn-primary mb-3">Añadir Nuevo Producto</a>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Stock Actual</th>
+                <th>Stock Mínimo</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.product_code }}</td>
+                <td>{{ product.description }}</td>
+                <td>{{ product.current_stock }}</td>
+                <td>{{ product.min_stock }}</td>
+                <td>
+                    <a href="{% url 'inventory:detail' pk=product.pk %}" class="btn btn-sm btn-info">Ver</a>
+                    <a href="{% url 'inventory:update' pk=product.pk %}" class="btn btn-sm btn-warning">Editar</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No hay productos registrados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

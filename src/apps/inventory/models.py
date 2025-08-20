@@ -32,8 +32,11 @@ class Product(models.Model):
     product_code = models.CharField(max_length=50, unique=True)
     description = models.CharField(max_length=200)
     unit = models.CharField(max_length=20)
-    cost = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     min_stock = models.PositiveIntegerField(default=0)
+    max_stock = models.IntegerField(default=0)
+    location = models.CharField(max_length=100, blank=True) # <-- Nuevo campo
+    category = models.CharField(max_length=100, blank=True) # <--
     current_stock = models.PositiveIntegerField(default=0)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True)

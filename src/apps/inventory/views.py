@@ -1,90 +1,60 @@
-from django.views.generic import ListView, DetailView, CreateView, UpdateView
-from django.contrib.auth.mixins import LoginRequiredMixin
+# src/apps/inventory/views.py
+from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.db.models import Q, F
-from django.shortcuts import get_object_or_404, redirect, render
-from .models import Product, Supplier, Warehouse
-from apps.inventory.forms import ProductForm
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, TemplateView
+from .models import Product, Supplier, Client, Warehouse
+from .forms import ProductForm
+from django.db.models import F
+from django.contrib import messages
+from django.db.models.functions import Lower
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
+
+# Vistas de la aplicación web (no API)
 
 def dashboard_view(request):
-    # Lógica para obtener datos del dashboard (ej. inventario, movimientos, etc.)
-    context = {}
+    low_stock_products_count = Product.objects.filter(current_stock__lte=F('min_stock')).count()
+    context = {
+        'low_stock_products_count': low_stock_products_count
+    }
     return render(request, 'inventory/dashboard.html', context)
 
 class ProductListView(LoginRequiredMixin, ListView):
     model = Product
     template_name = 'inventory/product_list.html'
     context_object_name = 'products'
-    paginate_by = 20
-    
+    paginate_by = 10
+
     def get_queryset(self):
-        queryset = super().get_queryset()
-        search_query = self.request.GET.get('q')
-        
-        if search_query:
-            queryset = queryset.filter(
-                Q(code__icontains=search_query) |
-                Q(description__icontains=search_query) |
-                Q(supplier__name__icontains=search_query)
-            )
-            
-        return queryset.select_related('supplier', 'warehouse')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['search_query'] = self.request.GET.get('q', '')
-        return context
+        queryset = super().get_queryset().order_by(Lower('description'))
+        query = self.request.GET.get('q')
+        if query:
+            queryset = queryset.filter(description__icontains=query)
+        return queryset
 
 class ProductDetailView(LoginRequiredMixin, DetailView):
     model = Product
     template_name = 'inventory/product_detail.html'
     context_object_name = 'product'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['movements'] = self.object.movement_set.order_by('-date')[:10]
-        return context
 
 class ProductCreateView(LoginRequiredMixin, CreateView):
     model = Product
     form_class = ProductForm
     template_name = 'inventory/product_form.html'
-    success_url = reverse_lazy('inventory')
-    
-    def form_valid(self, form):
-        form.instance.created_by = self.request.user
-        return super().form_valid(form)
+    success_url = reverse_lazy('inventory:list')
 
 class ProductUpdateView(LoginRequiredMixin, UpdateView):
     model = Product
     form_class = ProductForm
     template_name = 'inventory/product_form.html'
-    success_url = reverse_lazy('inventory')
+    success_url = reverse_lazy('inventory:list')
 
-class InventoryReportView(ListView):
-    model = Product
+class InventoryReportView(LoginRequiredMixin, TemplateView):
     template_name = 'inventory/report.html'
-    context_object_name = 'products'
-    
-    def get_queryset(self):
-        # Filtra para obtener productos con stock crítico
-        return Product.objects.annotate(
-            stock_difference=F('min_stock') - F('current_stock')
-        ).filter(current_stock__lt=F('min_stock')).order_by('-stock_difference')
 
+@login_required
 def request_replenishment(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    # Lógica para manejar la solicitud de reposición
-    # Por ejemplo, podrías crear un registro de un movimiento especial,
-    # enviar un correo electrónico al proveedor o registrar una alerta.
-    
-    # Aquí puedes añadir la lógica de negocio real.
-    # Por ejemplo:
-    # new_movement = Movement.objects.create(
-    #     product=product,
-    #     quantity=product.min_stock - product.current_stock,
-    #     movement_type='REQUEST'
-    # )
-    
-    # Redireccionar de vuelta a la página del producto
+    # Aquí puedes añadir la lógica para notificar, enviar un email, etc.
+    messages.success(request, f'Solicitud de reabastecimiento para "{product.description}" enviada con éxito.')
     return redirect('inventory:detail', pk=product.pk)
