@@ -1,50 +1,26 @@
+# src/core/urls.py
 from django.contrib import admin
 from django.urls import path, include
-from django.contrib.auth import views as auth_views
-from apps.dashboard.views import DashboardView
+from django.conf import settings
+from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
-    # Admin
-    path('admin/', admin.site.urls),
-    
-    # Autenticación
-    path('login/', auth_views.LoginView.as_view(
-        template_name='registration/login.html',
-        redirect_authenticated_user=True
-    ), name='login'),
-    
-    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-    
-    # Dashboard
-    path('', DashboardView.as_view(), name='dashboard'),
-    
-        # URLs de la API
+    # URLs de la API
     path('api/inventario/', include('apps.inventory.api_urls')),
-    
+    path('api/movimientos/', include('apps.movements.api_urls')),
+    path('api/cotizaciones/', include('apps.quotations.api_urls')),
+    path('api/notas-recepcion/', include('apps.reception_notes.api_urls')),
+
     # URLs de la aplicación web
-    path('inventario/', include('apps.inventory.urls')), # <-- Añade esta línea
-    
-    # Apps
-    path('inventario/', include('apps.inventory.urls', namespace='inventory')),
-    path('movimientos/', include('apps.movements.urls', namespace='movements')),
-    path('despachos/', include('apps.dispatch_notes.urls', namespace='dispatch_notes')),
-    path('cotizaciones/', include('apps.quotations.urls', namespace='quotations')),
-    path('recepciones/', include('apps.reception_notes.urls', namespace='receptions')),
-    path('devoluciones/', include('apps.returns.urls', namespace='returns')),
-    
-    path('404/', views.page_not_found, name='404'),
-    
-    # API
-    path('api/', include([
-        path('inventario/', include('apps.inventory.api_urls')),
-        path('movimientos/', include('apps.movements.api_urls')),
-    ])),
-    
-    # Error handlers
+    path('inventario/', include('apps.inventory.urls')),
+
+    # URLs de utilidades y error
+    path('admin/', admin.site.urls),
     path('404/', views.page_not_found, name='404'),
     path('500/', views.server_error, name='500'),
 ]
 
-handler404 = 'core.views.page_not_found'
-handler500 = 'core.views.server_error'
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
