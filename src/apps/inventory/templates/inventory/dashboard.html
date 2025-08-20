@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Dashboard de Inventario</h2>
+        </div>
+    </div>
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">Productos Totales</div>
+                <div class="card-body">
+                    <h5 class="card-title">250</h5>
+                    <p class="card-text">Total de productos registrados.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-header">Stock Bajo</div>
+                <div class="card-body">
+                    <h5 class="card-title">15</h5>
+                    <p class="card-text">Productos con nivel de stock por debajo del mínimo.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-header">Movimientos del Mes</div>
+                <div class="card-body">
+                    <h5 class="card-title">45</h5>
+                    <p class="card-text">Entradas y salidas de inventario recientes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

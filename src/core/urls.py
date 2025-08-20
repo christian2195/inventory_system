@@ -19,6 +19,12 @@ urlpatterns = [
     # Dashboard
     path('', DashboardView.as_view(), name='dashboard'),
     
+        # URLs de la API
+    path('api/inventario/', include('apps.inventory.api_urls')),
+    
+    # URLs de la aplicación web
+    path('inventario/', include('apps.inventory.urls')), # <-- Añade esta línea
+    
     # Apps
     path('inventario/', include('apps.inventory.urls', namespace='inventory')),
     path('movimientos/', include('apps.movements.urls', namespace='movements')),

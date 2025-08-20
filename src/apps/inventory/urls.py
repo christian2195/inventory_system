@@ -1,20 +1,15 @@
+# src/apps/inventory/urls.py
 from django.urls import path
-from .views import (
-    ProductListView,
-    ProductDetailView,
-    ProductCreateView,
-    ProductUpdateView,
-    InventoryReportView,
-    request_replenishment  # Asegúrate que existe en views.py
-)
+from . import views
+
 app_name = 'inventory'
 
 urlpatterns = [
-    path('', ProductListView.as_view(), name='list'),
-    path('nuevo/', ProductCreateView.as_view(), name='create'),
-    path('<int:pk>/', ProductDetailView.as_view(), name='detail'),
-    path('editar/<int:pk>/', ProductUpdateView.as_view(), name='update'),
-    path('reporte/', InventoryReportView.as_view(), name='report'),
-    path('solicitar/<int:pk>/', request_replenishment, name='request'),
-    # Eliminé el path duplicado de 'report/'
+    path('dashboard/', views.dashboard_view, name='inventory_dashboard'),
+    path('', views.ProductListView.as_view(), name='list'),
+    path('nuevo/', views.ProductCreateView.as_view(), name='create'),
+    path('<int:pk>/', views.ProductDetailView.as_view(), name='detail'),
+    path('editar/<int:pk>/', views.ProductUpdateView.as_view(), name='update'),
+    path('reporte/', views.InventoryReportView.as_view(), name='report'),
+    path('solicitar/<int:pk>/', views.request_replenishment, name='request'),
 ]

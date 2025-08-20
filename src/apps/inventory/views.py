@@ -6,6 +6,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .models import Product, Supplier, Warehouse
 from apps.inventory.forms import ProductForm
 
+def dashboard_view(request):
+    # Lógica para obtener datos del dashboard (ej. inventario, movimientos, etc.)
+    context = {}
+    return render(request, 'inventory/dashboard.html', context)
+
 class ProductListView(LoginRequiredMixin, ListView):
     model = Product
     template_name = 'inventory/product_list.html'
