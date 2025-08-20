@@ -1,22 +1,24 @@
 # src/apps/quotations/models.py
 from django.db import models
-from apps.inventory.models import Product
+from django.utils import timezone
+from apps.inventory.models import Product, Client
 
 class Quotation(models.Model):
-    client = models.CharField(max_length=100)
     quotation_number = models.CharField(max_length=50, unique=True)
-    date_created = models.DateTimeField(auto_now_add=True)
-    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    
-    # ... otros campos y métodos
-    
+    client = models.ForeignKey(Client, on_delete=models.CASCADE)
+    date_created = models.DateTimeField(default=timezone.now)
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_approved = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'Cotización N° {self.quotation_number}'
+
 class QuotationItem(models.Model):
-    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='items')
+    quotation = models.ForeignKey(Quotation, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
 
-    @property
-    def total_price(self):
-        # Esta línea debe estar indentada
-        return self.quantity * self.unit_price
+    def __str__(self):
+        return f'{self.quantity} de {self.product.description} en Cotización {self.quotation.quotation_number}'

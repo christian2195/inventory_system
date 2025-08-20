@@ -1,13 +1,18 @@
+# src/apps/quotations/urls.py
 from django.urls import path
-from . import views
+from .views import (
+    QuotationListView,
+    QuotationDetailView,
+    QuotationCreateView,
+    QuotationUpdateView,
+)
 
 app_name = 'quotations'
 
 urlpatterns = [
-    path('', views.QuotationListView.as_view(), name='list'),
-    path('nueva/', views.QuotationCreateView.as_view(), name='create'),
-    path('<int:pk>/', views.QuotationDetailView.as_view(), name='detail'),
-    path('editar/<int:pk>/', views.QuotationUpdateView.as_view(), name='update'),
-    path('aprobar/<int:pk>/', views.approve_quotation, name='approve'),
-    path('convertir/<int:pk>/', views.convert_to_order, name='convert'),
+    path('', QuotationListView.as_view(), name='list'),
+    path('nuevo/', QuotationCreateView.as_view(), name='create'),
+    path('<int:pk>/', QuotationDetailView.as_view(), name='detail'),
+    path('editar/<int:pk>/', QuotationUpdateView.as_view(), name='update'),
+    # Los demás paths como 'approve' se pueden añadir más tarde
 ]

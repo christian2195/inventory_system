@@ -10,14 +10,17 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">Inventario</a>
+            <a class="navbar-brand" href="{% url 'inventory:inventory_dashboard' %}">Inventario</a>
             <div class="collapse navbar-collapse">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
-                        <a class="nav-link" href="#">Dashboard</a>
+                        <a class="nav-link" href="{% url 'inventory:inventory_dashboard' %}">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#">Productos</a>
+                        <a class="nav-link" href="{% url 'inventory:list' %}">Productos</a>
+                    </li>
+                    <li class="nav-item">
+            <a class="nav-link" href="{% url 'quotations:list' %}">Cotizaciones</a>
                     </li>
                     </ul>
             </div>

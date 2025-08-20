@@ -6,6 +6,9 @@ from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+    # URLs de autenticación de usuario
+    path('accounts/', include('apps.users.urls')),
+    
     # URLs de la API
     path('api/inventario/', include('apps.inventory.api_urls')),
     path('api/movimientos/', include('apps.movements.api_urls')),
@@ -14,7 +17,7 @@ urlpatterns = [
 
     # URLs de la aplicación web
     path('inventario/', include('apps.inventory.urls')),
-
+    path('cotizaciones/', include('apps.quotations.urls')),
     # URLs de utilidades y error
     path('admin/', admin.site.urls),
     path('404/', views.page_not_found, name='404'),
