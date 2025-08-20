@@ -5,7 +5,7 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APPS_DIR = os.path.join(BASE_DIR, 'apps')
-sys.path.insert(0, APPS_DIR)  # ¡Esto es crucial!
+sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -29,15 +29,19 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # My apps
-    'apps.dashboard',
+# Third-party apps
+    'rest_framework',
+    
+    # My apps - Usa la configuración explícita para cada una
+    'apps.dashboard.apps.DashboardConfig',
     'apps.inventory.apps.InventoryConfig',
-    'apps.movements',
-    'apps.dispatch_notes',
-    'apps.quotations',
-    'apps.reception_notes',
-    'apps.returns',
-    'apps.users',
+    'apps.movements.apps.MovementsConfig',
+    'apps.dispatch_notes.apps.DispatchNotesConfig',
+    'apps.quotations.apps.QuotationsConfig',
+    'apps.reception_notes.apps.ReceptionNotesConfig',
+    'apps.returns.apps.ReturnsConfig',
+    'apps.users.apps.UsersConfig',
+    'apps.orders.apps.OrdersConfig', 
 ]
 
 MIDDLEWARE = [

@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from apps.dashboard.views import DashboardView
+from . import views
 
 urlpatterns = [
     # Admin
@@ -25,6 +26,8 @@ urlpatterns = [
     path('cotizaciones/', include('apps.quotations.urls', namespace='quotations')),
     path('recepciones/', include('apps.reception_notes.urls', namespace='receptions')),
     path('devoluciones/', include('apps.returns.urls', namespace='returns')),
+    
+    path('404/', views.page_not_found, name='404'),
     
     # API
     path('api/', include([

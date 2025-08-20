@@ -3,9 +3,9 @@ from .models import Product, Supplier, Warehouse
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('code', 'description', 'current_stock', 'min_stock', 'supplier', 'warehouse')
+    list_display = ('product_code', 'description', 'current_stock', 'min_stock', 'supplier', 'warehouse')
     list_filter = ('supplier', 'warehouse')
-    search_fields = ('code', 'description', 'supplier__name')
+    search_fields = ('product_code', 'description', 'supplier__name')
     list_editable = ('current_stock',)
     
 @admin.register(Supplier)

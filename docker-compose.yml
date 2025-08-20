@@ -22,7 +22,8 @@ services:
     environment:
       POSTGRES_DB: inventory_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: securepassword
+      POSTGRES_PASSWORD: securepassword 
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

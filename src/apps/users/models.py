@@ -3,12 +3,17 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 class User(AbstractUser):
-    # Agrega campos adicionales si es necesario
-    # phone_number = models.CharField(max_length=15, blank=True, null=True)
-    
-    class Meta:
-        verbose_name = "Usuario"
-        verbose_name_plural = "Usuarios"
-
-    def __str__(self):
-        return self.username
+    groups = models.ManyToManyField(
+        'auth.Group',
+        related_name='users_custom',
+        blank=True,
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
+        verbose_name='groups',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        related_name='users_custom',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        verbose_name='user permissions',
+    )

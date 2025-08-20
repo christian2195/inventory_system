@@ -3,8 +3,11 @@ from rest_framework import routers
 from . import api_views
 
 router = routers.DefaultRouter()
-router.register(r'productos', api_views.ProductViewSet)
-router.register(r'proveedores', api_views.SupplierViewSet)
+router.register(r'products', api_views.ProductViewSet)
+router.register(r'suppliers', api_views.SupplierViewSet)
+router.register(r'clients', api_views.ClientViewSet)
+router.register(r'warehouses', api_views.WarehouseViewSet)
+urlpatterns = router.urls
 
 urlpatterns = [
     path('stock/', api_views.StockAPIView.as_view(), name='stock'),
