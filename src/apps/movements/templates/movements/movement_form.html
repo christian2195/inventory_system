@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Crear Nuevo Movimiento</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="{{ form.product.id_for_label }}" class="form-label">Producto</label>
+            {{ form.product }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.movement_type.id_for_label }}" class="form-label">Tipo de Movimiento</label>
+            {{ form.movement_type }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.quantity.id_for_label }}" class="form-label">Cantidad</label>
+            {{ form.quantity }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.unit_price.id_for_label }}" class="form-label">Precio Unitario</label>
+            {{ form.unit_price }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.observations.id_for_label }}" class="form-label">Observaciones</label>
+            {{ form.observations }}
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'movements:list' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

@@ -14,10 +14,18 @@ urlpatterns = [
     path('api/movimientos/', include('apps.movements.api_urls')),
     path('api/cotizaciones/', include('apps.quotations.api_urls')),
     path('api/notas-recepcion/', include('apps.reception_notes.api_urls')),
+     path('notas-recepcion/', include('apps.reception_notes.urls')),
 
     # URLs de la aplicación web
     path('inventario/', include('apps.inventory.urls')),
     path('cotizaciones/', include('apps.quotations.urls')),
+    path('pedidos/', include('apps.orders.urls')),
+    path('movimientos/', include('apps.movements.urls')),
+    path('devoluciones/', include('apps.returns.urls')),
+    path('accounts/', include('apps.users.urls')),
+    path('accounts/', include('apps.users.urls')),
+    path('notas-despacho/', include('apps.dispatch_notes.urls')),
+    
     # URLs de utilidades y error
     path('admin/', admin.site.urls),
     path('404/', views.page_not_found, name='404'),

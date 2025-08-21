@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Notas de Despacho</h2>
+    <a href="{% url 'dispatch_notes:create' %}" class="btn btn-primary mb-3">➕ Nueva Nota de Despacho</a>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>N° de Despacho</th>
+                <th>Cliente</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dispatch in dispatches %}
+            <tr>
+                <td>{{ dispatch.dispatch_number }}</td>
+                <td>{{ dispatch.client.name }}</td>
+                <td>{{ dispatch.dispatch_date|date:"d M Y" }}</td>
+                <td>{{ dispatch.get_status_display }}</td>
+                <td>
+                    <a href="{% url 'dispatch_notes:detail' dispatch.pk %}" class="btn btn-sm btn-info">Ver</a>
+                    <a href="{% url 'dispatch_notes:update' dispatch.pk %}" class="btn btn-sm btn-warning">Editar</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No hay notas de despacho registradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

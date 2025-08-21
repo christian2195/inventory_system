@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Detalles de Nota de Devolución #{{ return_note.return_number }}</h2>
+    <p><strong>Cliente:</strong> {{ return_note.client.name }}</p>
+    <p><strong>Fecha:</strong> {{ return_note.return_date|date:"d M Y" }}</p>
+    <p><strong>Devuelto por:</strong> {{ return_note.returned_by }}</p>
+    <p><strong>Estado:</strong> {{ return_note.get_status_display }}</p>
+    <hr>
+    <h3>Productos Devueltos</h3>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio Unitario</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.product.description }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>${{ item.unit_price }}</td>
+                <td>${{ item.subtotal }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4">No hay productos en esta nota de devolución.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="{% url 'returns:list' %}" class="btn btn-secondary">Volver a la Lista</a>
+    {% if return_note.status == 'PENDING' %}
+    <a href="{% url 'returns:process' return_note.pk %}" class="btn btn-success">Procesar Devolución</a>
+    {% endif %}
+</div>
+{% endblock %}

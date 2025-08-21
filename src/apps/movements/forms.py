@@ -1,12 +1,15 @@
-# src/apps/movements/forms.py
 from django import forms
 from .models import Movement
 
 class MovementForm(forms.ModelForm):
     class Meta:
         model = Movement
-        fields = ['product', 'quantity', 'movement_type', 'unit_price', 'delivered_to', 'observations']
+        fields = ['product', 'movement_type', 'quantity', 'unit_price', 'observations']
         widgets = {
-            'movement_type': forms.Select(choices=Movement.MOVEMENT_TYPES),
+            'product': forms.Select(attrs={'class': 'form-control'}),
+            'movement_type': forms.Select(attrs={'class': 'form-control'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+            'observations': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         

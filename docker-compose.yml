@@ -11,7 +11,8 @@ services:
       - DJANGO_SETTINGS_MODULE=core.settings
       - PYTHONPATH=/app/src
     working_dir: /app/src
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "sleep 10 && python manage.py runserver 0.0.0.0:8000" # <-- Añadimos un retraso para que la DB se inicie
     ports:
       - "8000:8000"  # Mapeo de puertos
     depends_on:
@@ -23,8 +24,7 @@ services:
       POSTGRES_DB: inventory_db
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: securepassword 
-    ports:
-      - "5432:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

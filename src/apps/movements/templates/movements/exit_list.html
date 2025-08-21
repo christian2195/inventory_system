@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Salidas de Inventario</h2>
+    <a href="{% url 'movements:create' %}" class="btn btn-warning mb-3">
+        <i class="fas fa-plus me-1"></i>Registrar Salida
+    </a>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio Unitario</th>
+                <th>Fecha</th>
+                <th>Observaciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exit in exits %}
+            <tr>
+                <td>{{ exit.product.description }}</td>
+                <td>{{ exit.quantity }}</td>
+                <td>${{ exit.unit_price|floatformat:2 }}</td>
+                <td>{{ exit.date|date:"d M Y H:i" }}</td>
+                <td>{{ exit.observations }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No se encontraron salidas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

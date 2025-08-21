@@ -20,9 +20,27 @@
                         <a class="nav-link" href="{% url 'inventory:list' %}">Productos</a>
                     </li>
                     <li class="nav-item">
-            <a class="nav-link" href="{% url 'quotations:list' %}">Cotizaciones</a>
+                        <a class="nav-link" href="{% url 'quotations:list' %}">Cotizaciones</a>
                     </li>
-                    </ul>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'orders:list' %}">Pedidos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'reception_notes:list' %}">Notas de Recepción</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'movements:list' %}">Movimientos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'returns:list' %}">Devoluciones</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'admin:index' %}">Admin</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'dispatch_notes:list' %}">Notas de Despacho</a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Reporte Mensual de Movimientos</h2>
+    <p>Reporte de movimientos desde {{ start_date|date:"d M Y" }} hasta {{ end_date|date:"d M Y" }}</p>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio Unitario</th>
+                <th>Observaciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for movement in movements %}
+            <tr>
+                <td>{{ movement.date|date:"d M Y" }}</td>
+                <td>{{ movement.get_movement_type_display }}</td>
+                <td>{{ movement.product.description }}</td>
+                <td>{{ movement.quantity }}</td>
+                <td>${{ movement.unit_price|floatformat:2 }}</td>
+                <td>{{ movement.observations }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">No se encontraron movimientos en este período.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

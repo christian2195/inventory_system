@@ -1,3 +1,4 @@
+# src/apps/dispatch_notes/urls.py
 from django.urls import path
 from . import views
 
@@ -9,5 +10,5 @@ urlpatterns = [
     path('<int:pk>/', views.DispatchNoteDetailView.as_view(), name='detail'),
     path('editar/<int:pk>/', views.DispatchNoteUpdateView.as_view(), name='update'),
     path('imprimir/<int:pk>/', views.DispatchNotePrintView.as_view(), name='print'),
-    path('buscar-productos/', views.product_search_api, name='product_search'),
+    path('api/product-search/', views.product_search_api, name='product_search_api'),
 ]

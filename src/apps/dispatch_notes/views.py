@@ -4,6 +4,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, T
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse
+from django.db import transaction
 from .models import DispatchNote, DispatchItem
 from .forms import DispatchNoteForm, DispatchItemFormSet
 from apps.inventory.models import Product
@@ -36,24 +37,26 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
         context = self.get_context_data()
         formset = context['formset']
         
-        if formset.is_valid():
-            self.object = form.save()
-            formset.instance = self.object
+        with transaction.atomic():
+            self.object = form.save(commit=False)
+            self.object.created_by = self.request.user
+            self.object.save()
             
-            # Guardar items
-            instances = formset.save(commit=False)
-            for instance in instances:
-                instance.dispatch_note = self.object
-                instance.save()
+            if formset.is_valid():
+                formset.instance = self.object
+                instances = formset.save(commit=False)
+                for instance in instances:
+                    instance.dispatch_note = self.object
+                    instance.save()
                 
-                # Actualizar stock del producto
-                product = instance.product
-                product.current_stock -= instance.quantity
-                product.save()
+                    # Actualizar stock del producto
+                    product = instance.product
+                    product.current_stock -= instance.quantity
+                    product.save()
+            else:
+                return self.form_invalid(form)
             
-            return super().form_valid(form)
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
+        return redirect(self.get_success_url())
 
 class DispatchNoteDetailView(LoginRequiredMixin, DetailView):
     model = DispatchNote
@@ -70,6 +73,29 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
     form_class = DispatchNoteForm
     template_name = 'dispatch_notes/dispatch_form.html'
     success_url = reverse_lazy('dispatch_notes:list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['formset'] = DispatchItemFormSet(self.request.POST, instance=self.object)
+        else:
+            context['formset'] = DispatchItemFormSet(instance=self.object)
+        return context
+    
+    def form_valid(self, form):
+        context = self.get_context_data()
+        formset = context['formset']
+        
+        with transaction.atomic():
+            self.object = form.save()
+            
+            if formset.is_valid():
+                formset.instance = self.object
+                formset.save()
+            else:
+                return self.form_invalid(form)
+            
+        return redirect(self.get_success_url())
 
 class DispatchNotePrintView(LoginRequiredMixin, DetailView):
     model = DispatchNote

@@ -7,7 +7,7 @@ class DispatchItemInline(admin.TabularInline):
 
 @admin.register(DispatchNote)
 class DispatchNoteAdmin(admin.ModelAdmin):
-    list_display = ('beneficiary', 'dispatch_date', 'supplier', 'order_number')
-    list_filter = ('dispatch_date', 'supplier')
-    search_fields = ('beneficiary', 'order_number')
+    list_display = ('dispatch_number', 'client', 'dispatch_date', 'status')
+    list_filter = ('dispatch_date', 'status', 'client')
+    search_fields = ('dispatch_number', 'client__name', 'notes')
     inlines = [DispatchItemInline]
