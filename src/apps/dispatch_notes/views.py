@@ -57,7 +57,6 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                 return self.form_invalid(form)
             
         return redirect(self.get_success_url())
-
 class DispatchNoteDetailView(LoginRequiredMixin, DetailView):
     model = DispatchNote
     template_name = 'dispatch_notes/dispatch_detail.html'
