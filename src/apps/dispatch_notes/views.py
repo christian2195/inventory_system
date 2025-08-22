@@ -101,6 +101,25 @@ class DispatchNotePrintView(LoginRequiredMixin, DetailView):
     template_name = 'dispatch_notes/dispatch_print.html'
     context_object_name = 'dispatch'
     
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        context = self.get_context_data(object=self.object)
+        
+        # Renderiza la plantilla HTML con los datos de la nota de despacho
+        html_string = render_to_string(self.template_name, context)
+        
+        # Crea el objeto HTML a partir de la cadena de texto
+        html = HTML(string=html_string, base_url=request.build_absolute_uri())
+        
+        # Genera el PDF a partir del HTML
+        pdf = html.write_pdf()
+        
+        # Crea la respuesta HTTP con el PDF
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="nota_despacho_{self.object.dispatch_number}.pdf"'
+        
+        return response
+    
 # Vista para API de búsqueda de productos
 def product_search_api(request):
     query = request.GET.get('q', '')

@@ -2,3 +2,4 @@ Django==4.2
 psycopg2-binary
 django-crispy-forms
 djangorestframework
+crispy-bootstrap5==0.7

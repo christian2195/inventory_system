@@ -28,7 +28,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
+    'crispy_forms',
+    'crispy_bootstrap5',
 # Third-party apps
     'rest_framework',
     
@@ -134,3 +135,6 @@ MEDIA_ROOT = '/app/media'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Configuración para crispy-forms
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"

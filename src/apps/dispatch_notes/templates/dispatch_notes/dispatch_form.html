@@ -1,20 +1,103 @@
 {% extends 'base.html' %}
+{% load crispy_forms_tags %}
 {% block content %}
 <div class="container mt-4">
-    <h2>Crear Nota de Despacho</h2>
+    <h2>{% if form.instance.pk %}Editar{% else %}Crear{% endif %} Nota de Despacho</h2>
     <form method="post">
         {% csrf_token %}
-        {{ form.as_p }}
-        <hr>
-        <h3>Productos a Despachar</h3>
-        {{ formset.management_form }}
-        {% for form in formset %}
-            <div class="form-row">
-                {{ form.as_p }}
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                Información General
             </div>
-        {% endfor %}
-        <button type="submit" class="btn btn-primary">Guardar</button>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">{{ form.dispatch_number|as_crispy_field }}</div>
+                    <div class="col-md-6">{{ form.client|as_crispy_field }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{{ form.beneficiary|as_crispy_field }}</div>
+                    <div class="col-md-6">{{ form.supplier|as_crispy_field }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{{ form.order_number|as_crispy_field }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">{{ form.notes|as_crispy_field }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                Información del Conductor y Vehículo
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">{{ form.driver_name|as_crispy_field }}</div>
+                    <div class="col-md-6">{{ form.driver_id|as_crispy_field }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{{ form.vehicle_type|as_crispy_field }}</div>
+                    <div class="col-md-6">{{ form.vehicle_color|as_crispy_field }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{{ form.license_plate|as_crispy_field }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                Productos a Despachar
+            </div>
+            <div class="card-body">
+                {{ formset.management_form }}
+                <div id="formset-container">
+                    {% for item_form in formset %}
+                    <div class="form-row form-inline mb-2 border p-2">
+                        <div class="row">
+                            <div class="col-md-4">{{ item_form.product|as_crispy_field }}</div>
+                            <div class="col-md-2">{{ item_form.quantity|as_crispy_field }}</div>
+                            <div class="col-md-2">{{ item_form.unit_price|as_crispy_field }}</div>
+                            <div class="col-md-2">{{ item_form.brand|as_crispy_field }}</div>
+                            <div class="col-md-2">{{ item_form.model|as_crispy_field }}</div>
+                        </div>
+                        <div class="row">
+                             <div class="col-md-12">{{ item_form.DELETE }} Eliminar</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-secondary mt-3" id="add-item">Añadir Otro Producto</button>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Guardar Nota de Despacho</button>
         <a href="{% url 'dispatch_notes:list' %}" class="btn btn-secondary">Cancelar</a>
     </form>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addItemButton = document.getElementById('add-item');
+        const formsetContainer = document.getElementById('formset-container');
+        const totalForms = document.querySelector('input[name$="TOTAL_FORMS"]');
+
+        addItemButton.addEventListener('click', () => {
+            const currentTotalForms = parseInt(totalForms.value);
+            const emptyForm = formsetContainer.querySelector('.form-row.form-inline').cloneNode(true);
+
+            emptyForm.innerHTML = emptyForm.innerHTML.replace(/__prefix__/g, currentTotalForms);
+            
+            // Limpiar valores del formulario clonado
+            emptyForm.querySelectorAll('input').forEach(input => input.value = '');
+            emptyForm.querySelector('select').selectedIndex = 0;
+            
+            formsetContainer.appendChild(emptyForm);
+            totalForms.value = currentTotalForms + 1;
+        });
+    });
+</script>
+
 {% endblock %}

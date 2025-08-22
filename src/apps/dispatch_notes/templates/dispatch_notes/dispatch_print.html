@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Nota de Despacho N° {{ dispatch.dispatch_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            margin: auto;
+        }
+        .header, .footer {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logo {
+            width: 100px; /* Ajusta el tamaño de tu logo */
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .info-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            vertical-align: top;
+        }
+        .info-table td strong {
+            display: block;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .items-table th, .items-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+        .items-table th {
+            background-color: #f2f2f2;
+        }
+        .observations {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-bottom: 20px;
+            min-height: 50px;
+        }
+        .driver-info {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .driver-info td {
+            border: 1px solid #000;
+            padding: 8px;
+        }
+        .signatures {
+            width: 100%;
+            margin-top: 40px;
+        }
+        .signatures .col {
+            width: 50%;
+            float: left;
+            text-align: center;
+        }
+        .signature-line {
+            border-bottom: 1px solid #000;
+            margin-top: 50px;
+            width: 80%;
+            margin: 50px auto 5px auto;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <img src="https://via.placeholder.com/100" alt="Logo de la empresa" class="logo">
+        <h1>NOTA DE DESPACHO ALMACEN TIUNA</h1>
+    </div>
+
+    <table class="info-table">
+        <tr>
+            <td colspan="2"><strong>NOMBRE DEL BENEFICIARIO</strong><br>{{ dispatch.beneficiary }}</td>
+            <td><strong>FECHA DE DESPACHO</strong><br>{{ dispatch.dispatch_date|date:"d/m/Y" }}</td>
+        </tr>
+        <tr>
+            <td><strong>PROVEEDOR</strong><br>{{ dispatch.supplier.name }}</td>
+            <td><strong>N° ORDEN ASOCIADA</strong><br>{{ dispatch.order_number }}</td>
+            <td><strong>Estado</strong><br>{{ dispatch.get_status_display }}</td>
+        </tr>
+    </table>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>ITEMS</th>
+                <th>PRODUCTO</th>
+                <th>MARCA</th>
+                <th>MODELO</th>
+                <th>CANTIDAD</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in dispatch.items.all %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ item.product.description }}</td>
+                <td>{{ item.brand }}</td>
+                <td>{{ item.model }}</td>
+                <td>{{ item.quantity }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No se encontraron productos.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p><strong>OBSERVACIONES</strong></p>
+    <div class="observations">
+        <p>{{ dispatch.observations }}</p>
+    </div>
+
+    <table class="driver-info">
+        <thead>
+            <tr>
+                <th>NOMBRE DEL CONDUCTOR</th>
+                <th>C.I:</th>
+                <th>TIPO</th>
+                <th>COLOR</th>
+                <th>PLACA</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ dispatch.driver_name }}</td>
+                <td>{{ dispatch.driver_id }}</td>
+                <td>{{ dispatch.vehicle_type }}</td>
+                <td>{{ dispatch.vehicle_color }}</td>
+                <td>{{ dispatch.license_plate }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="notes">
+        <p><strong>Nota importante:</strong></p>
+        <p>1.- La empresa Venezuela Productiva no se hace responsable de daños ocasionados a productos en el traslado del mismo.</p>
+        <p>2.- Cualquier sustracción o deterioro que no conste en la presente guía, reclame al conductor.</p>
+        <p>3.- Favor devolver el duplicado de la guía firmado como garantía de recepción.</p>
+    </div>
+
+    <div class="signatures">
+        <div class="col">
+            <div class="signature-line"></div>
+            <strong>Conductor</strong>
+        </div>
+        <div class="col">
+            <div class="signature-line"></div>
+            <strong>Beneficiario /Autorizado</strong>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

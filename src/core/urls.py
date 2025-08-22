@@ -1,11 +1,14 @@
 # src/core/urls.py
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+     # Redirecciona la URL raíz a la URL del dashboard de inventario
+    path('', RedirectView.as_view(pattern_name='inventory:inventory_dashboard', permanent=False)),
     # URLs de autenticación de usuario
     path('accounts/', include('apps.users.urls')),
     
@@ -15,14 +18,14 @@ urlpatterns = [
     path('api/cotizaciones/', include('apps.quotations.api_urls')),
     path('api/notas-recepcion/', include('apps.reception_notes.api_urls')),
      path('notas-recepcion/', include('apps.reception_notes.urls')),
-
+     
+    
     # URLs de la aplicación web
     path('inventario/', include('apps.inventory.urls')),
     path('cotizaciones/', include('apps.quotations.urls')),
     path('pedidos/', include('apps.orders.urls')),
     path('movimientos/', include('apps.movements.urls')),
     path('devoluciones/', include('apps.returns.urls')),
-    path('accounts/', include('apps.users.urls')),
     path('accounts/', include('apps.users.urls')),
     path('notas-despacho/', include('apps.dispatch_notes.urls')),
     
