@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Detalles de Nota de Despacho #{{ dispatch_note.dispatch_number }}</h2>
+        <div>
+            <a href="{% url 'dispatch_notes:list' %}" class="btn btn-secondary me-2">
+                <i class="fas fa-arrow-left"></i> Volver a la Lista
+            </a>
+            <a href="{% url 'dispatch_notes:print' dispatch_note.pk %}" class="btn btn-primary" target="_blank">
+                <i class="fas fa-print"></i> Imprimir PDF
+            </a>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    Información de la Nota
+                </div>
+                <div class="card-body">
+                    <p><strong>Número:</strong> {{ dispatch_note.dispatch_number }}</p>
+                    <p><strong>Cliente:</strong> {{ dispatch_note.client }}</p>
+                    <p><strong>Beneficiario:</strong> {{ dispatch_note.beneficiary }}</p>
+                    <p><strong>Proveedor:</strong> {{ dispatch_note.supplier }}</p>
+                    <p><strong>N° de Orden Asociada:</strong> {{ dispatch_note.order_number }}</p>
+                    <p><strong>Fecha de Despacho:</strong> {{ dispatch_note.dispatch_date|date:"d/m/Y H:i" }}</p>
+                    <p><strong>Estado:</strong> {{ dispatch_note.get_status_display }}</p>
+                    <p><strong>Creado por:</strong> {{ dispatch_note.created_by.get_full_name }}</p>
+                    <p><strong>Observaciones:</strong> {{ dispatch_note.notes }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    Información del Vehículo
+                </div>
+                <div class="card-body">
+                    <p><strong>Nombre del Conductor:</strong> {{ dispatch_note.driver_name }}</p>
+                    <p><strong>C.I:</strong> {{ dispatch_note.driver_id }}</p>
+                    <p><strong>Tipo de Vehículo:</strong> {{ dispatch_note.vehicle_type }}</p>
+                    <p><strong>Color:</strong> {{ dispatch_note.vehicle_color }}</p>
+                    <p><strong>Placa:</strong> {{ dispatch_note.license_plate }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            Productos Despachados
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Marca</th>
+                        <th>Modelo</th>
+                        <th>Cantidad</th>
+                        <th>Precio Unitario</th>
+                        <th>Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in dispatch_note.items.all %}
+                    <tr>
+                        <td>{{ item.product.name }}</td>
+                        <td>{{ item.brand }}</td>
+                        <td>{{ item.model }}</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>Bs. {{ item.unit_price }}</td>
+                        <td>Bs. {{ item.subtotal }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center">No hay productos en esta nota de despacho.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="5" class="text-end">Total de la Nota:</th>
+                        <th>Bs. {{ dispatch_note.total }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

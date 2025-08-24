@@ -7,8 +7,8 @@ class DispatchNoteForm(forms.ModelForm):
     class Meta:
         model = DispatchNote
         fields = [
-            'dispatch_number',
-            'client',
+            'dispatch_number', 
+            'client', 
             'beneficiary',
             'supplier',
             'order_number',
@@ -17,7 +17,7 @@ class DispatchNoteForm(forms.ModelForm):
             'vehicle_type',
             'vehicle_color',
             'license_plate',
-            'notes',
+            'notes'
         ]
         widgets = {
             'dispatch_number': forms.TextInput(attrs={'class': 'form-control'}),
@@ -36,13 +36,13 @@ class DispatchNoteForm(forms.ModelForm):
 class DispatchItemForm(forms.ModelForm):
     class Meta:
         model = DispatchItem
-        fields = ['product', 'brand', 'model', 'quantity', 'unit_price']
+        fields = ['product', 'quantity', 'unit_price', 'brand', 'model']
         widgets = {
             'product': forms.Select(attrs={'class': 'form-control'}),
-            'brand': forms.TextInput(attrs={'class': 'form-control'}),
-            'model': forms.TextInput(attrs={'class': 'form-control'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
             'unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+            'brand': forms.TextInput(attrs={'class': 'form-control'}),
+            'model': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
 DispatchItemFormSet = inlineformset_factory(

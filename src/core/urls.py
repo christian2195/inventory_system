@@ -4,9 +4,13 @@ from django.urls import path, include
 from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
+from apps.inventory import dashboard_views
 from . import views
 
 urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('admin/dashboard/', dashboard_views.custom_dashboard, name='custom_dashboard'),
+    
      # Redirecciona la URL raíz a la URL del dashboard de inventario
     path('', RedirectView.as_view(pattern_name='inventory:inventory_dashboard', permanent=False)),
     # URLs de autenticación de usuario
@@ -29,7 +33,7 @@ urlpatterns = [
     path('notas-despacho/', include('apps.dispatch_notes.urls')),
     
     # URLs de utilidades y error
-    path('admin/', admin.site.urls),
+
     path('404/', views.page_not_found, name='404'),
     path('500/', views.server_error, name='500'),
 ]

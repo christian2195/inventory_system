@@ -22,6 +22,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -139,3 +140,36 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Configuración para crispy-forms
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+JAZZMIN_SETTINGS = {
+    "site_header": "Sistema de Inventario",
+    "site_brand": "Vehiclucia",
+    "site_logo": "img/logo.png", # Puedes usar tu propio logo
+    "welcome_sign": "¡Bienvenido al Panel de Administración!",
+    "search_model": ["auth.User", "inventory.Product"],
+
+    "topmenu_links": [
+        {"name": "Inicio", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "Soporte", "url": "https://github.com/farkins/django-jazzmin/issues", "new_window": True},
+    ],
+
+    "usermenu_links": [
+        {"model": "auth.user"},
+    ],
+
+    "show_ui_builder": True,
+
+    "order_with_respect_to": ["inventory", "reception_notes", "dispatch_notes", "returns"],
+
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "inventory.product": "fas fa-box",
+        "inventory.supplier": "fas fa-truck-loading",
+        "inventory.client": "fas fa-handshake",
+        "reception_notes.receptionnote": "fas fa-truck-loading",
+        "dispatch_notes.dispatchnote": "fas fa-dolly-flatbed",
+        "returns.returnnote": "fas fa-undo",
+    },
+}
