@@ -8,6 +8,5 @@ urlpatterns = [
     path('', views.ReturnNoteListView.as_view(), name='list'),
     path('nuevo/', views.ReturnNoteCreateView.as_view(), name='create'),
     path('<int:pk>/', views.ReturnNoteDetailView.as_view(), name='detail'),
-    path('<int:pk>/procesar/', views.process_return, name='process'),
-    path('crear-desde-despacho/<int:dispatch_id>/', views.create_from_dispatch, name='create_from_dispatch'),
+    path('procesar/<int:pk>/', views.process_return_note, name='process'),
 ]

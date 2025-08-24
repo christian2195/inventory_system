@@ -35,7 +35,10 @@
     </table>
     <a href="{% url 'reception_notes:list' %}" class="btn btn-secondary">Volver a la Lista</a>
     {% if reception.status == 'PENDING' %}
-    <a href="{% url 'reception_notes:validate' reception.pk %}" class="btn btn-success">Validar Recepción</a>
+    <form method="post" action="{% url 'reception_notes:validate' reception.pk %}" class="d-inline-block">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success">Validar Nota</button>
+    </form>
     {% endif %}
 </div>
 {% endblock %}

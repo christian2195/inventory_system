@@ -17,8 +17,7 @@ urlpatterns = [
     path('api/movimientos/', include('apps.movements.api_urls')),
     path('api/cotizaciones/', include('apps.quotations.api_urls')),
     path('api/notas-recepcion/', include('apps.reception_notes.api_urls')),
-     path('notas-recepcion/', include('apps.reception_notes.urls')),
-     
+    path('notas-recepcion/', include('apps.reception_notes.urls')),
     
     # URLs de la aplicación web
     path('inventario/', include('apps.inventory.urls')),

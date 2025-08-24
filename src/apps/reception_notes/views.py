@@ -1,111 +1,81 @@
 # src/apps/reception_notes/views.py
-from django.views.generic import ListView, CreateView, DetailView
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
-from django.contrib import messages
+from django.db.models import F
 from .models import ReceptionNote, ReceptionItem
 from .forms import ReceptionNoteForm, ReceptionItemFormSet
-from apps.inventory.models import Product, Supplier
-from apps.movements.models import Movement
-from apps.orders.models import Order, OrderItem
-from django.views.generic import TemplateView
-from django.db.models import Count, F, Q
-from django.utils import timezone
+from apps.inventory.models import Product
 
 class ReceptionNoteListView(LoginRequiredMixin, ListView):
     model = ReceptionNote
     template_name = 'reception_notes/reception_list.html'
     context_object_name = 'receptions'
     paginate_by = 15
-
+    
     def get_queryset(self):
-        return super().get_queryset().order_by('-reception_date')
+        return super().get_queryset().prefetch_related('items').order_by('-receipt_date')
 
 class ReceptionNoteCreateView(LoginRequiredMixin, CreateView):
     model = ReceptionNote
     form_class = ReceptionNoteForm
     template_name = 'reception_notes/reception_form.html'
-    success_url = reverse_lazy('receptions:list')
-
+    success_url = reverse_lazy('reception_notes:list')
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if self.request.POST:
-            context['formset'] = ReceptionItemFormSet(self.request.POST)
+            context['formset'] = ReceptionItemFormSet(self.request.POST, instance=self.object)
         else:
-            context['formset'] = ReceptionItemFormSet()
+            context['formset'] = ReceptionItemFormSet(instance=self.object)
         return context
-
+    
     def form_valid(self, form):
         context = self.get_context_data()
         formset = context['formset']
         
         with transaction.atomic():
-            self.object = form.save(commit=False)
-            self.object.received_by = self.request.user
-            self.object.save()
-
+            self.object = form.save()
+            
             if formset.is_valid():
                 formset.instance = self.object
                 formset.save()
-
-                for item in self.object.items.all():
-                    Movement.objects.create(
-                        product=item.product,
-                        movement_type='IN',
-                        quantity=item.quantity,
-                        unit_price=item.unit_price,
-                        delivered_to=self.object.received_by,
-                        observations=f"Recepción #{self.object.reception_number}",
-                        created_by=self.request.user
-                    )
             else:
                 return self.form_invalid(form)
-
-        return super().form_valid(form)
+            
+        return redirect(self.get_success_url())
 
 class ReceptionNoteDetailView(LoginRequiredMixin, DetailView):
     model = ReceptionNote
     template_name = 'reception_notes/reception_detail.html'
     context_object_name = 'reception'
-
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items.all()
+        context['items'] = self.object.items.select_related('product')
         return context
 
+class ReceptionNoteUpdateView(LoginRequiredMixin, UpdateView):
+    model = ReceptionNote
+    form_class = ReceptionNoteForm
+    template_name = 'reception_notes/reception_form.html'
+    success_url = reverse_lazy('reception_notes:list')
+    
 @transaction.atomic
-def validate_reception(request, pk):
-    reception = get_object_or_404(ReceptionNote, pk=pk)
-    reception.status = 'VALIDATED'
-    reception.save()
-    messages.success(request, 'Nota de recepción validada con éxito.')
-    return redirect('receptions:detail', pk=pk)
+def validate_reception_note(request, pk):
+    reception_note = get_object_or_404(ReceptionNote, pk=pk)
+    if request.method == 'POST' and reception_note.status == 'PENDING':
+        # 1. Cambiar el estado de la nota a 'RECEIVED'
+        reception_note.status = 'RECEIVED'
+        reception_note.save()
 
-@transaction.atomic
-def create_from_order(request, order_id):
-    order = get_object_or_404(Order, pk=order_id)
-    if request.method == 'POST':
-        reception = ReceptionNote.objects.create(
-            supplier=order.supplier,
-            received_by=request.user,
-            reception_number=f'REC-{order.order_number}',
-            notes=f'Creada automáticamente desde Orden de Compra #{order.order_number}'
-        )
+        # 2. Iterar sobre cada item y actualizar el inventario
+        for item in reception_note.items.all():
+            item.product.current_stock = F('current_stock') + item.quantity
+            item.product.save(update_fields=['current_stock'])
 
-        for item in order.items.all():
-            ReceptionItem.objects.create(
-                reception_note=reception,
-                product=item.product,
-                quantity=item.quantity,
-                unit_price=item.unit_price
-            )
-
-        messages.success(request, 'Nota de recepción creada desde la orden de compra con éxito.')
-        return redirect('receptions:detail', pk=reception.pk)
-
-    context = {
-        'order': order,
-    }
-    return render(request, 'reception_notes/create_from_order_confirm.html', context)
+        return redirect('reception_notes:detail', pk=reception_note.pk)
+    
+    return redirect('reception_notes:detail', pk=reception_note.pk)

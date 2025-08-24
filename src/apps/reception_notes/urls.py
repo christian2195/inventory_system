@@ -8,6 +8,6 @@ urlpatterns = [
     path('', views.ReceptionNoteListView.as_view(), name='list'),
     path('nuevo/', views.ReceptionNoteCreateView.as_view(), name='create'),
     path('<int:pk>/', views.ReceptionNoteDetailView.as_view(), name='detail'),
-    path('<int:pk>/validar/', views.validate_reception, name='validate'),
-    path('crear-desde-orden/<int:order_id>/', views.create_from_order, name='create_from_order'),
+    path('editar/<int:pk>/', views.ReceptionNoteUpdateView.as_view(), name='update'),
+    path('validar/<int:pk>/', views.validate_reception_note, name='validate'), # <-- AÑADIR ESTA LÍNEA
 ]
