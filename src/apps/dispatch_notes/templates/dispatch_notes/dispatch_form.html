@@ -65,7 +65,7 @@
                 <div id="formset-container">
                     {{ formset.management_form }}
                     {% for form in formset %}
-                    <div class="form-row form-inline mb-3 formset-item">
+                    <div class="form-row form-inline mb-3 formset-item" data-form-id="{{ forloop.counter0 }}">
                         {% if form.non_field_errors %}
                             <div class="alert alert-danger">
                                 {% for error in form.non_field_errors %}
@@ -73,7 +73,10 @@
                                 {% endfor %}
                             </div>
                         {% endif %}
-                        <div class="col-md-3">{{ form.product|as_crispy_field }}</div>
+                        <div class="col-md-3">
+                            {{ form.product_search|as_crispy_field }}
+                            {{ form.product }}
+                        </div>
                         <div class="col-md-2">{{ form.brand|as_crispy_field }}</div>
                         <div class="col-md-2">{{ form.model|as_crispy_field }}</div>
                         <div class="col-md-2">{{ form.quantity|as_crispy_field }}</div>
@@ -95,7 +98,10 @@
 
 <div id="empty-form-template" style="display: none;">
     <div class="form-row form-inline mb-3 formset-item">
-        <div class="col-md-3">{{ formset.empty_form.product|as_crispy_field }}</div>
+        <div class="col-md-3">
+            {{ formset.empty_form.product_search|as_crispy_field }}
+            {{ formset.empty_form.product }}
+        </div>
         <div class="col-md-2">{{ formset.empty_form.brand|as_crispy_field }}</div>
         <div class="col-md-2">{{ formset.empty_form.model|as_crispy_field }}</div>
         <div class="col-md-2">{{ formset.empty_form.quantity|as_crispy_field }}</div>
@@ -106,44 +112,112 @@
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const addItemButton = document.getElementById('add-item');
-        const formsetContainer = document.getElementById('formset-container');
-        const totalForms = document.querySelector('input[name$="TOTAL_FORMS"]');
-        const emptyFormTemplate = document.getElementById('empty-form-template');
+    function updateFormIndices() {
+        $('#formset-container .formset-item').each(function(index) {
+            $(this).find(':input').each(function() {
+                var name = $(this).attr('name');
+                var id = $(this).attr('id');
+                if (name) {
+                    name = name.replace(/-\d+-/g, '-' + index + '-');
+                    $(this).attr('name', name);
+                }
+                if (id) {
+                    id = id.replace(/-\d+-/g, '-' + index + '-');
+                    $(this).attr('id', id);
+                }
+            });
+        });
+    }
 
-        addItemButton.addEventListener('click', () => {
-            const currentTotalForms = parseInt(totalForms.value);
-            const newForm = emptyFormTemplate.innerHTML.replace(/__prefix__/g, currentTotalForms);
-            
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = newForm.trim();
-            formsetContainer.appendChild(tempDiv.firstChild);
+    $(document).ready(function() {
+        const totalForms = $('#id_dispatchitem_set-TOTAL_FORMS');
+        const emptyFormTemplate = $('#empty-form-template .formset-item');
 
-            totalForms.value = currentTotalForms + 1;
+        $('#add-item').on('click', function() {
+            var currentTotalForms = parseInt(totalForms.val());
+            var newForm = emptyFormTemplate.clone(true);
+            newForm.find(':input').each(function() {
+                var name = $(this).attr('name').replace('__prefix__', currentTotalForms);
+                var id = $(this).attr('id').replace('__prefix__', currentTotalForms);
+                $(this).attr('name', name).attr('id', id).val('');
+            });
+            $('#formset-container').append(newForm);
+            totalForms.val(currentTotalForms + 1);
         });
 
-        formsetContainer.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-item')) {
-                const formToRemove = e.target.closest('.formset-item');
-                if (formToRemove) {
-                    formToRemove.remove();
-                    const currentTotalForms = parseInt(totalForms.value);
-                    totalForms.value = currentTotalForms - 1;
-                    
-                    const forms = formsetContainer.querySelectorAll('.formset-item');
-                    forms.forEach((form, index) => {
-                        form.querySelectorAll('[name]').forEach(input => {
-                            const newName = input.name.replace(/-\d+-/g, `-${index}-`);
-                            input.name = newName;
-                            const newId = input.id.replace(/-\d+-/g, `-${index}-`);
-                            input.id = newId;
-                        });
+        $(document).on('click', '.remove-item', function() {
+            $(this).closest('.formset-item').remove();
+            totalForms.val(parseInt(totalForms.val()) - 1);
+            updateFormIndices();
+        });
+
+        $(document).on('keyup', '.product-autocomplete', function() {
+            var input = $(this);
+            var query = input.val();
+            var formItem = input.closest('.formset-item');
+            var productIdInput = formItem.find('input[id$="-product"]');
+            var brandInput = formItem.find('input[id$="-brand"]');
+            var modelInput = formItem.find('input[id$="-model"]');
+            var priceInput = formItem.find('input[id$="-unit_price"]');
+
+            // Limpia los campos si el input está vacío
+            if (query.length < 3) {
+                productIdInput.val('');
+                brandInput.val('');
+                modelInput.val('');
+                priceInput.val('');
+                // Ocultar sugerencias
+                return;
+            }
+
+            $.ajax({
+                url: '{% url "dispatch_notes:product_search_api" %}',
+                data: {
+                    'q': query
+                },
+                dataType: 'json',
+                success: function(data) {
+                    // Lógica para mostrar las sugerencias.
+                    // Aquí puedes usar una librería como jQuery UI Autocomplete, o
+                    // construir un simple dropdown con una lista <ul>
+                    var suggestions = $('<ul class="list-group position-absolute z-index-1"></ul>');
+                    $.each(data.results, function(index, item) {
+                        var suggestionItem = $('<li class="list-group-item list-group-item-action"></li>')
+                            .text(item.text)
+                            .data('product', item);
+                        suggestions.append(suggestionItem);
+                    });
+
+                    // Elimina sugerencias anteriores
+                    formItem.find('.list-group').remove();
+                    // Adjunta las nuevas sugerencias
+                    input.after(suggestions);
+
+                    // Manejar clic en una sugerencia
+                    suggestions.on('click', 'li', function() {
+                        var selectedProduct = $(this).data('product');
+                        input.val(selectedProduct.text);
+                        productIdInput.val(selectedProduct.id);
+                        brandInput.val(selectedProduct.brand);
+                        modelInput.val(selectedProduct.model);
+                        priceInput.val(selectedProduct.price);
+                        
+                        // Oculta la lista de sugerencias
+                        suggestions.remove();
                     });
                 }
+            });
+        });
+
+        // Ocultar sugerencias al hacer clic fuera
+        $(document).on('click', function(event) {
+            if (!$(event.target).closest('.product-autocomplete, .list-group').length) {
+                $('.list-group').remove();
             }
         });
+
     });
 </script>
 {% endblock %}

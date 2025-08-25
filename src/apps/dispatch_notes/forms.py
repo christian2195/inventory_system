@@ -2,6 +2,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 from .models import DispatchNote, DispatchItem
+from apps.inventory.models import Product  # Asegúrate de importar tu modelo de Producto
 
 class DispatchNoteForm(forms.ModelForm):
     class Meta:
@@ -34,11 +35,24 @@ class DispatchNoteForm(forms.ModelForm):
         }
 
 class DispatchItemForm(forms.ModelForm):
+    # Campo oculto para guardar el ID del producto
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.all(),
+        widget=forms.HiddenInput(),
+        required=False
+    )
+    # Campo visible para el autocompletado
+    product_search = forms.CharField(
+        label="Producto",
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control product-autocomplete'})
+    )
+
     class Meta:
         model = DispatchItem
         fields = ['product', 'quantity', 'unit_price', 'brand', 'model']
         widgets = {
-            'product': forms.Select(attrs={'class': 'form-control'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
             'unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
             'brand': forms.TextInput(attrs={'class': 'form-control'}),
