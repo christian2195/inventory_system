@@ -1,19 +1,12 @@
 {% extends 'base.html' %}
 {% load crispy_forms_tags %}
+
 {% block content %}
 <div class="container mt-4">
     <h2>{% if form.instance.pk %}Editar{% else %}Crear{% endif %} Nota de Despacho</h2>
     <form method="post" id="dispatch-form">
         {% csrf_token %}
         
-        {% if form.non_field_errors %}
-            <div class="alert alert-danger">
-                {% for error in form.non_field_errors %}
-                    {{ error }}
-                {% endfor %}
-            </div>
-        {% endif %}
-
         <div class="card mb-4">
             <div class="card-header">Información General</div>
             <div class="card-body">
@@ -42,49 +35,87 @@
                     <div class="col-md-6">{{ form.driver_id|as_crispy_field }}</div>
                 </div>
                 <div class="row">
-                    <div class="col-md-6">{{ form.vehicle_type|as_crispy_field }}</div>
-                    <div class="col-md-6">{{ form.vehicle_color|as_crispy_field }}</div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">{{ form.license_plate|as_crispy_field }}</div>
+                    <div class="col-md-4">{{ form.vehicle_type|as_crispy_field }}</div>
+                    <div class="col-md-4">{{ form.vehicle_color|as_crispy_field }}</div>
+                    <div class="col-md-4">{{ form.license_plate|as_crispy_field }}</div>
                 </div>
             </div>
         </div>
 
         <div class="card mb-4">
-            <div class="card-header">Productos de la Nota de Despacho</div>
+            <div class="card-header">Productos</div>
             <div class="card-body">
-                {% if formset.non_form_errors %}
-                    <div class="alert alert-danger">
-                        {% for error in formset.non_form_errors %}
-                            {{ error }}
-                        {% endfor %}
-                    </div>
-                {% endif %}
-                
+                {{ formset.management_form }}
                 <div id="formset-container">
-                    {{ formset.management_form }}
-                    {% for form in formset %}
-                    <div class="form-row form-inline mb-3 formset-item">
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger">
-                                {% for error in form.non_field_errors %}
-                                    {{ error }}
-                                {% endfor %}
+                    {% for item_form in formset %}
+                    <div class="formset-item mb-3 p-3 border rounded">
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn-close remove-item" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ item_form.product_search.id_for_label }}" class="form-label">
+                                        {{ item_form.product_search.label }}
+                                    </label>
+                                    {{ item_form.product_search }}
+                                    <small class="form-text text-muted">Buscar por código</small>
+                                </div>
                             </div>
-                        {% endif %}
-                        <div class="col-md-3">{{ form.product|as_crispy_field }}</div>
-                        <div class="col-md-2">{{ form.brand|as_crispy_field }}</div>
-                        <div class="col-md-2">{{ form.model|as_crispy_field }}</div>
-                        <div class="col-md-2">{{ form.quantity|as_crispy_field }}</div>
-                        <div class="col-md-2">{{ form.unit_price|as_crispy_field }}</div>
-                        <div class="col-md-1 d-flex align-items-center">
-                            <button type="button" class="btn btn-danger remove-item">X</button>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ item_form.product_description.id_for_label }}" class="form-label">
+                                        {{ item_form.product_description.label }}
+                                    </label>
+                                    {{ item_form.product_description }}
+                                    <small class="form-text text-muted">Descripción del producto</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label for="{{ item_form.quantity.id_for_label }}" class="form-label">
+                                        {{ item_form.quantity.label }}
+                                    </label>
+                                    {{ item_form.quantity }}
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label for="{{ item_form.unit_price.id_for_label }}" class="form-label">
+                                        {{ item_form.unit_price.label }}
+                                    </label>
+                                    {{ item_form.unit_price }}
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    {{ item_form.product }}
+                                    {{ item_form.id }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-3 align-items-end mt-2">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ item_form.brand.id_for_label }}" class="form-label">
+                                        {{ item_form.brand.label }}
+                                    </label>
+                                    {{ item_form.brand }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="{{ item_form.model.id_for_label }}" class="form-label">
+                                        {{ item_form.model.label }}
+                                    </label>
+                                    {{ item_form.model }}
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
-                <button type="button" class="btn btn-secondary mt-3" id="add-item">➕ Añadir Otro Producto</button>
+                <button type="button" class="btn btn-secondary mt-3" id="add-item">Añadir Otro Producto</button>
             </div>
         </div>
 
@@ -93,18 +124,58 @@
     </form>
 </div>
 
-<div id="empty-form-template" style="display: none;">
-    <div class="form-row form-inline mb-3 formset-item">
-        <div class="col-md-3">{{ formset.empty_form.product|as_crispy_field }}</div>
-        <div class="col-md-2">{{ formset.empty_form.brand|as_crispy_field }}</div>
-        <div class="col-md-2">{{ formset.empty_form.model|as_crispy_field }}</div>
-        <div class="col-md-2">{{ formset.empty_form.quantity|as_crispy_field }}</div>
-        <div class="col-md-2">{{ formset.empty_form.unit_price|as_crispy_field }}</div>
-        <div class="col-md-1 d-flex align-items-center">
-            <button type="button" class="btn btn-danger remove-item">X</button>
+<template id="empty-form-template">
+    <div class="formset-item mb-3 p-3 border rounded">
+        <div class="d-flex justify-content-end">
+            <button type="button" class="btn-close remove-item" aria-label="Cerrar"></button>
+        </div>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="__prefix__-product_search" class="form-label">Código Producto</label>
+                    <input type="text" name="__prefix__-product_search" class="form-control product-search" placeholder="Buscar por código..." id="__prefix__-product_search">
+                    <small class="form-text text-muted">Buscar por código</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="__prefix__-product_description" class="form-label">Descripción</label>
+                    <input type="text" name="__prefix__-product_description" class="form-control" placeholder="Descripción del producto..." readonly id="__prefix__-product_description">
+                    <small class="form-text text-muted">Descripción del producto</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label for="__prefix__-quantity" class="form-label">Cantidad</label>
+                    <input type="number" name="__prefix__-quantity" class="form-control" min="1" value="1" id="__prefix__-quantity">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label for="__prefix__-unit_price" class="form-label">Precio Unitario</label>
+                    <input type="number" name="__prefix__-unit_price" class="form-control" step="0.01" id="__prefix__-unit_price">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <input type="hidden" name="__prefix__-product" id="__prefix__-product">
+            </div>
+        </div>
+        <div class="row g-3 align-items-end mt-2">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="__prefix__-brand" class="form-label">Marca</label>
+                    <input type="text" name="__prefix__-brand" class="form-control" id="__prefix__-brand">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="__prefix__-model" class="form-label">Modelo</label>
+                    <input type="text" name="__prefix__-model" class="form-control" id="__prefix__-model">
+                </div>
+            </div>
         </div>
     </div>
-</div>
+</template>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -113,17 +184,23 @@
         const totalForms = document.querySelector('input[name$="TOTAL_FORMS"]');
         const emptyFormTemplate = document.getElementById('empty-form-template');
 
+        // Función para agregar nuevo item
         addItemButton.addEventListener('click', () => {
             const currentTotalForms = parseInt(totalForms.value);
             const newForm = emptyFormTemplate.innerHTML.replace(/__prefix__/g, currentTotalForms);
             
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = newForm.trim();
-            formsetContainer.appendChild(tempDiv.firstChild);
+            const newFormElement = tempDiv.firstChild;
+            formsetContainer.appendChild(newFormElement);
 
             totalForms.value = currentTotalForms + 1;
+            
+            // Inicializar la búsqueda para el nuevo campo
+            initProductSearch(newFormElement);
         });
 
+        // Función para eliminar item
         formsetContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('remove-item')) {
                 const formToRemove = e.target.closest('.formset-item');
@@ -132,6 +209,7 @@
                     const currentTotalForms = parseInt(totalForms.value);
                     totalForms.value = currentTotalForms - 1;
                     
+                    // Reindexar los forms restantes
                     const forms = formsetContainer.querySelectorAll('.formset-item');
                     forms.forEach((form, index) => {
                         form.querySelectorAll('[name]').forEach(input => {
@@ -144,6 +222,310 @@
                 }
             }
         });
+
+        // Función para inicializar la búsqueda de productos
+        function initProductSearch(container) {
+            const searchInput = container ? container.querySelector('.product-search') : document.querySelector('.product-search');
+            if (!searchInput) return;
+            
+            let timeout = null;
+            const resultsContainer = document.createElement('div');
+            resultsContainer.classList.add('product-results', 'list-group', 'mt-1');
+            searchInput.parentNode.appendChild(resultsContainer);
+
+            searchInput.addEventListener('input', () => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    const query = searchInput.value.trim();
+                    resultsContainer.innerHTML = '';
+                    
+                    if (query.length > 1) {
+                        fetch(`{% url 'dispatch_notes:product_search_api' %}?q=${encodeURIComponent(query)}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                resultsContainer.innerHTML = '';
+                                
+                                if (data && data.length > 0) {
+                                    data.forEach(product => {
+                                        const item = document.createElement('a');
+                                        item.href = '#';
+                                        item.classList.add('list-group-item', 'list-group-item-action');
+                                        
+                                        // Mostrar información completa
+                                        item.innerHTML = `
+                                            <div class="fw-bold">${product.product_code}</div>
+                                            <div class="small">${product.description}</div>
+                                            ${product.unit_price ? `<div class="text-success">Precio: $${product.unit_price}</div>` : ''}
+                                            ${product.current_stock !== undefined ? `<div class="text-info">Stock: ${product.current_stock}</div>` : ''}
+                                        `;
+                                        
+                                        item.addEventListener('click', (e) => {
+                                            e.preventDefault();
+                                            autocompleteProductFields(searchInput, product);
+                                            resultsContainer.innerHTML = '';
+                                        });
+                                        resultsContainer.appendChild(item);
+                                    });
+                                } else {
+                                    const noResults = document.createElement('div');
+                                    noResults.classList.add('list-group-item', 'text-muted');
+                                    noResults.textContent = 'No se encontraron productos';
+                                    resultsContainer.appendChild(noResults);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error en búsqueda:', error);
+                                resultsContainer.innerHTML = '';
+                            });
+                    }
+                }, 300);
+            });
+
+            // Cerrar resultados al hacer clic fuera
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.innerHTML = '';
+                }
+            });
+        }
+
+        // Función para autocompletar campos
+        function autocompleteProductFields(searchInput, product) {
+            const formsetItem = searchInput.closest('.formset-item');
+            
+            console.log('Autocompleting fields for product:', product);
+            
+            // 1. Llenar el campo de búsqueda con el código
+            if (searchInput) {
+                searchInput.value = product.product_code || '';
+            }
+            
+            // 2. Llenar el campo de descripción
+            const descriptionInput = formsetItem.querySelector('input[name*="-product_description"]');
+            if (descriptionInput && product.description) {
+                descriptionInput.value = product.description;
+            }
+            
+            // 3. Buscar el campo hidden del producto y asignar el ID
+            const productIdInput = formsetItem.querySelector('input[name*="-product"]');
+            if (productIdInput && product.id) {
+                productIdInput.value = product.id;
+                console.log(`Set product ID: ${productIdInput.name} = ${productIdInput.value}`);
+            } else {
+                console.error('Product ID input not found or product has no ID');
+            }
+            
+            // 4. Autocompletar precio unitario
+            const unitPriceInput = formsetItem.querySelector('input[name*="-unit_price"]');
+            const quantityInput = formsetItem.querySelector('input[name*="-quantity"]');
+            
+            if (unitPriceInput && product.unit_price) {
+                unitPriceInput.value = product.unit_price;
+            }
+            
+            if (quantityInput && !quantityInput.value) {
+                quantityInput.value = 1;
+            }
+        }
+
+        // Función para cargar valores iniciales
+        function loadInitialProductValues() {
+            document.querySelectorAll('input[name*="-product"]').forEach(hiddenInput => {
+                if (hiddenInput.value && hiddenInput.value.trim() !== '') {
+                    const formsetItem = hiddenInput.closest('.formset-item');
+                    const searchInput = formsetItem.querySelector('.product-search');
+                    const descriptionInput = formsetItem.querySelector('input[name*="-product_description"]');
+                    
+                    console.log(`Loading product ID: ${hiddenInput.value} for field: ${hiddenInput.name}`);
+                    
+                    // Solo hacer la llamada si el valor es numérico
+                    if (/^\d+$/.test(hiddenInput.value.trim())) {
+                        fetch(`{% url 'dispatch_notes:product_search_api' %}?id=${hiddenInput.value.trim()}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Network response was not ok');
+                                }
+                                return response.json();
+                            })
+                            .then(products => {
+                                if (products && products.length > 0) {
+                                    const product = products[0];
+                                    console.log('Product found:', product);
+                                    
+                                    if (searchInput) searchInput.value = product.product_code || '';
+                                    if (descriptionInput) descriptionInput.value = product.description || '';
+                                    
+                                    const unitPriceInput = formsetItem.querySelector('input[name*="-unit_price"]');
+                                    if (unitPriceInput && product.unit_price && !unitPriceInput.value) {
+                                        unitPriceInput.value = product.unit_price;
+                                    }
+                                } else {
+                                    console.warn('No product found for ID:', hiddenInput.value);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error loading product:', error);
+                                // Fallback: intentar buscar por código si el ID falla
+                                if (searchInput) {
+                                    searchInput.value = hiddenInput.value;
+                                }
+                            });
+                    } else {
+                        // Si no es numérico, usar el valor como código de producto
+                        if (searchInput && !searchInput.value) {
+                            searchInput.value = hiddenInput.value;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Inicializar búsqueda para todos los campos existentes
+        document.querySelectorAll('.product-search').forEach(input => {
+            initProductSearch();
+        });
+
+        // Observer para nuevos campos
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1 && node.classList.contains('formset-item')) {
+                        setTimeout(() => {
+                            initProductSearch(node);
+                        }, 100);
+                    }
+                });
+            });
+        });
+
+        observer.observe(formsetContainer, { childList: true });
+
+        // Cargar valores iniciales cuando la página esté lista
+        setTimeout(loadInitialProductValues, 500);
     });
+// Debug: Verificar el estado del formulario antes de enviar
+document.getElementById('dispatch-form').addEventListener('submit', function(e) {
+    console.log("=== FORM SUBMIT DEBUG ===");
+    
+    // Verificar todos los campos de productos
+    document.querySelectorAll('input[name*="-product"]').forEach(input => {
+        console.log(`${input.name}: '${input.value}'`);
+    });
+    
+    // Verificar campos required
+    const requiredFields = this.querySelectorAll('[required]');
+    requiredFields.forEach(field => {
+        console.log(`${field.name}: '${field.value}' ${field.value ? '✓' : '✗ EMPTY'}`);
+    });
+    
+    // Continuar con el envío
+    console.log("Form submitted successfully");
+});
 </script>
+
+<style>
+    .form-group {
+        margin-bottom: 0;
+    }
+    
+    .form-label {
+        font-weight: 500;
+        font-size: 0.9rem;
+        margin-bottom: 0.3rem;
+        color: #495057;
+    }
+    
+    .form-text {
+        font-size: 0.75rem;
+        margin-top: 0.2rem;
+        color: #6c757d;
+    }
+    
+    .form-control {
+        font-size: 0.9rem;
+        padding: 0.4rem 0.75rem;
+        height: calc(2.25rem + 2px);
+    }
+    
+    .form-control[readonly] {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+        opacity: 0.8;
+    }
+    
+    .align-items-end {
+        align-items: end !important;
+    }
+    
+    .mt-2 {
+        margin-top: 0.5rem !important;
+    }
+    
+    .product-search {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236c757d' class='bi bi-search' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 16px 16px;
+        padding-right: 35px;
+    }
+    
+    .product-results {
+        position: absolute;
+        z-index: 1000;
+        max-height: 300px;
+        overflow-y: auto;
+        width: 100%;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .product-results .list-group-item {
+        cursor: pointer;
+        border: none;
+        border-bottom: 1px solid #eee;
+        padding: 10px 12px;
+        font-size: 14px;
+        transition: background-color 0.2s;
+    }
+    
+    .product-results .list-group-item:hover {
+        background-color: #e9ecef;
+    }
+    
+    .product-results .list-group-item:last-child {
+        border-bottom: none;
+    }
+    
+    .product-results .fw-bold {
+        font-size: 15px;
+        color: #0d6efd;
+    }
+    
+    .product-results .small {
+        font-size: 13px;
+        color: #6c757d;
+    }
+    
+    .product-results .text-success {
+        font-size: 13px;
+        font-weight: 500;
+        color: #198754;
+    }
+    
+    .product-results .text-info {
+        font-size: 13px;
+        color: #0dcaf0;
+    }
+    
+    .formset-item {
+        position: relative;
+    }
+    
+    .btn-close {
+        padding: 0.5rem;
+        margin: -0.5rem -0.5rem -0.5rem auto;
+    }
+</style>
 {% endblock %}

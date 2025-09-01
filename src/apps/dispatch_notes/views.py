@@ -13,6 +13,8 @@ from .forms import DispatchNoteForm, DispatchItemFormSet
 from apps.inventory.models import Product
 from django.db.models import F
 from django.contrib import messages
+from django.db.models import Q
+
 
 # Vistas de la interfaz de usuario
 class DispatchNoteListView(LoginRequiredMixin, ListView):
@@ -36,9 +38,29 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
             context['formset'] = DispatchItemFormSet()
         return context
 
+    def post(self, request, *args, **kwargs):
+        print("=== DEBUG CREATE POST ===")
+        print("POST data keys:", list(request.POST.keys()))
+        # No imprimir todo el POST porque puede ser muy largo
+        return super().post(request, *args, **kwargs)
+
     def form_valid(self, form):
         context = self.get_context_data()
         formset = context['formset']
+        
+        print("=== DEBUG FORM VALIDATION CREATE ===")
+        print(f"Form is valid: {form.is_valid()}")
+        print(f"Formset is valid: {formset.is_valid()}")
+        
+        if not form.is_valid():
+            print("Form errors:", form.errors)
+            
+        if not formset.is_valid():
+            print("Formset errors:", formset.errors)
+            print("Formset non-form errors:", formset.non_form_errors())
+            for i, item_form in enumerate(formset):
+                if not item_form.is_valid():
+                    print(f"Form {i} errors:", item_form.errors)
         
         with transaction.atomic():
             self.object = form.save(commit=False)
@@ -51,10 +73,12 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                 for item in items_to_save:
                     item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
                     item.save()
-                    Product.objects.filter(pk=item.product.pk).update(current_stock=F('current_stock') - item.quantity)
+                    # COMENTA TEMPORALMENTE LA ACTUALIZACIÓN DE STOCK
+                    # Product.objects.filter(pk=item.product.pk).update(current_stock=F('current_stock') - item.quantity)
                 
                 # Guarda los elementos eliminados
-                formset.save_m2m()
+                for obj in formset.deleted_objects:
+                    obj.delete()
                 
                 total = sum(item.subtotal for item in self.object.items.all())
                 self.object.total = total
@@ -68,98 +92,9 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
     
     def form_invalid(self, form, formset=None):
         if formset is None:
-            formset = DispatchItemFormSet(self.request.POST, instance=self.object)
+            formset = DispatchItemFormSet(self.request.POST)
         context = self.get_context_data(form=form, formset=formset)
         return self.render_to_response(context)
-
-class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
-    model = DispatchNote
-    form_class = DispatchNoteForm
-    template_name = 'dispatch_notes/dispatch_form.html'
-    success_url = reverse_lazy('dispatch_notes:list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        if self.request.POST:
-            context['formset'] = DispatchItemFormSet(self.request.POST, self.request.FILES, instance=self.object)
-        else:
-            context['formset'] = DispatchItemFormSet(instance=self.object)
-        return context
-
-    def form_valid(self, form):
-        context = self.get_context_data()
-        formset = context['formset']
-        
-        # Guardar la nota antes de procesar los items
-        with transaction.atomic():
-            self.object = form.save()
-            
-            if formset.is_valid():
-                # Obtener una copia de los items originales antes de guardar los nuevos cambios
-                original_items = {item.pk: item for item in self.object.items.all()}
-                
-                # Guarda los cambios en el formset
-                instances = formset.save(commit=False)
-                
-                # Procesa los elementos modificados y nuevos
-                for instance in instances:
-                    # Actualiza el subtotal
-                    instance.subtotal = instance.quantity * (instance.unit_price if instance.unit_price else 0)
-                    
-                    # Si es un item nuevo, guardar y ajustar stock
-                    if instance.pk is None:
-                        instance.save()
-                        Product.objects.filter(pk=instance.product.pk).update(current_stock=F('current_stock') - instance.quantity)
-                    else:
-                        # Si es un item modificado, recalcular el cambio de stock
-                        old_item = original_items[instance.pk]
-                        stock_change = old_item.quantity - instance.quantity
-                        
-                        # Guardar el item
-                        instance.save()
-                        
-                        # Si el producto es el mismo, ajustar el stock por la diferencia
-                        if old_item.product.pk == instance.product.pk:
-                            Product.objects.filter(pk=instance.product.pk).update(current_stock=F('current_stock') + stock_change)
-                        # Si el producto ha cambiado, ajustar ambos stocks
-                        else:
-                            Product.objects.filter(pk=old_item.product.pk).update(current_stock=F('current_stock') + old_item.quantity)
-                            Product.objects.filter(pk=instance.product.pk).update(current_stock=F('current_stock') - instance.quantity)
-                
-                # Procesa los elementos eliminados
-                for item in formset.deleted_objects:
-                    Product.objects.filter(pk=item.product.pk).update(current_stock=F('current_stock') + item.quantity)
-                    item.delete()
-
-                # Recalcular el total después de todos los cambios
-                self.object.total = sum(item.subtotal for item in self.object.items.all())
-                self.object.save()
-            else:
-                messages.error(self.request, "Hubo un error con los productos. Por favor, revisa los datos ingresados.")
-                return self.form_invalid(form, formset)
-
-        messages.success(self.request, f"Nota de Despacho N°{self.object.dispatch_number} actualizada exitosamente.")
-        return redirect(self.get_success_url())
-
-    def form_invalid(self, form, formset=None):
-        if formset is None:
-            formset = DispatchItemFormSet(self.request.POST, instance=self.object)
-        context = self.get_context_data(form=form, formset=formset)
-        return self.render_to_response(context)
-    
-    
-class DispatchNoteDetailView(LoginRequiredMixin, DetailView):
-    model = DispatchNote
-    template_name = 'dispatch_notes/dispatch_detail.html'
-    context_object_name = 'dispatch_note'
-    
-    def get_queryset(self):
-        return super().get_queryset().select_related('client', 'created_by').prefetch_related('items__product')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items.select_related('product')
-        return context
 
 class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
     model = DispatchNote
@@ -176,6 +111,9 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
     def post(self, request, *args, **kwargs):
+        print("=== DEBUG UPDATE POST ===")
+        print("POST data keys:", list(request.POST.keys()))
+        
         self.object = self.get_object()
         form = self.get_form()
         formset = DispatchItemFormSet(self.request.POST, instance=self.object)
@@ -186,40 +124,90 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
             return self.form_invalid(form, formset)
 
     def form_valid(self, form, formset):
+        print("=== DEBUG FORM VALIDATION UPDATE ===")
+        print(f"Form is valid: {form.is_valid()}")
+        print(f"Formset is valid: {formset.is_valid()}")
+        
+        if not form.is_valid():
+            print("Form errors:", form.errors)
+            
+        if not formset.is_valid():
+            print("Formset errors:", formset.errors)
+            print("Formset non-form errors:", formset.non_form_errors())
+            for i, item_form in enumerate(formset):
+                if not item_form.is_valid():
+                    print(f"Form {i} errors:", item_form.errors)
+        
         with transaction.atomic():
-            # 1. Guardar la nota de despacho principal
             self.object = form.save()
-            
-            # 2. Obtener los productos originales para calcular el cambio de stock
             original_items = {item.pk: item for item in self.object.items.all()}
-            
-            # 3. Guardar los items del formset (nuevos y modificados)
             updated_items = formset.save(commit=False)
             
             for item in updated_items:
-                if item.pk in original_items:
-                    original_item = original_items.pop(item.pk)
-                    change = original_item.quantity - item.quantity
-                    if change != 0:
-                        Product.objects.filter(pk=item.product.pk).update(current_stock=F('current_stock') + change)
+                if item.pk:  # Item existente
+                    original_item = original_items.get(item.pk)
+                    if original_item:
+                        # Si cambió el producto o la cantidad
+                        if original_item.product != item.product:
+                            # COMENTA TEMPORALMENTE STOCK
+                            # Product.objects.filter(pk=original_item.product.pk).update(
+                            #     current_stock=F('current_stock') + original_item.quantity
+                            # )
+                            # Product.objects.filter(pk=item.product.pk).update(
+                            #     current_stock=F('current_stock') - item.quantity
+                            # )
+                            pass
+                        elif original_item.quantity != item.quantity:
+                            # COMENTA TEMPORALMENTE STOCK
+                            # difference = original_item.quantity - item.quantity
+                            # Product.objects.filter(pk=item.product.pk).update(
+                            #     current_stock=F('current_stock') + difference
+                            # )
+                            pass
+                else:  # Nuevo item
+                    # COMENTA TEMPORALMENTE STOCK
+                    # Product.objects.filter(pk=item.product.pk).update(
+                    #     current_stock=F('current_stock') - item.quantity
+                    # )
+                    pass
                 item.save()
-
-            # 4. Manejar los items eliminados
+            
+            # Manejar items eliminados
             for item in formset.deleted_objects:
-                Product.objects.filter(pk=item.product.pk).update(current_stock=F('current_stock') + item.quantity)
+                # COMENTA TEMPORALMENTE STOCK
+                # Product.objects.filter(pk=item.product.pk).update(
+                #     current_stock=F('current_stock') + item.quantity
+                # )
                 item.delete()
-
-            # 5. Calcular y guardar el total de la nota
-            total = sum(item.subtotal for item in self.object.items.all())
-            self.object.total = total
+            
+            # Recalcular total
+            self.object.total = sum(item.subtotal for item in self.object.items.all())
             self.object.save()
-
+        
+        messages.success(self.request, f"Nota de Despacho N°{self.object.dispatch_number} actualizada exitosamente.")
         return redirect(self.get_success_url())
 
     def form_invalid(self, form, formset):
+        print("=== FORM INVALID ===")
+        print(f"Form errors: {form.errors}")
+        print(f"Formset errors: {formset.errors}")
         context = self.get_context_data(form=form, formset=formset)
         return self.render_to_response(context)
     
+class DispatchNoteDetailView(LoginRequiredMixin, DetailView):
+    model = DispatchNote
+    template_name = 'dispatch_notes/dispatch_detail.html'
+    context_object_name = 'dispatch_note'
+    
+    def get_queryset(self):
+        return super().get_queryset().select_related('client', 'created_by').prefetch_related('items__product')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['items'] = self.object.items.select_related('product')
+        return context
+
+
 class DispatchNotePrintView(LoginRequiredMixin, DetailView):
     model = DispatchNote
     template_name = 'dispatch_notes/dispatch_print.html'
@@ -239,7 +227,64 @@ class DispatchNotePrintView(LoginRequiredMixin, DetailView):
         return response
     
 def product_search_api(request):
-    query = request.GET.get('q', '')
-    products = Product.objects.filter(code__icontains=query) | Product.objects.filter(description__icontains=query)
-    results = [{'id': p.id, 'text': f"{p.code} - {p.description}"} for p in products]
-    return JsonResponse({'results': results})
+    try:
+        product_id = request.GET.get('id')
+        query = request.GET.get('q', '')
+        
+        print(f"DEBUG API: id={product_id}, q={query}")
+        
+        if product_id:
+            # VERIFICAR SI ES UN NÚMERO VÁLIDO
+            try:
+                product_id_int = int(product_id)
+                products = Product.objects.filter(pk=product_id_int).values(
+                    'id', 'product_code', 'description', 'unit_price', 'current_stock'
+                )
+            except (ValueError, TypeError):
+                # Si no es un número, buscar por código de producto
+                products = Product.objects.filter(
+                    Q(product_code__iexact=product_id) | Q(description__icontains=product_id)
+                ).values('id', 'product_code', 'description', 'unit_price', 'current_stock')[:1]
+        
+        elif query:
+            # Búsqueda por texto
+            products = Product.objects.filter(
+                Q(product_code__icontains=query) | Q(description__icontains=query)
+            ).values('id', 'product_code', 'description', 'unit_price', 'current_stock')[:10]
+        else:
+            products = Product.objects.none()
+        
+        products_list = list(products)
+        print(f"DEBUG API: Returning {len(products_list)} products")
+        return JsonResponse(products_list, safe=False)
+        
+    except Exception as e:
+        print(f"ERROR in product_search_api: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+def form_valid(self, form):
+    context = self.get_context_data()
+    formset = context['formset']
+    
+    print("=== DEBUG FORM VALIDATION CREATE ===")
+    print(f"Form is valid: {form.is_valid()}")
+    print(f"Formset is valid: {formset.is_valid()}")
+    
+    if not formset.is_valid():
+        print("Formset errors:", formset.errors)
+        print("Formset non-form errors:", formset.non_form_errors())
+        
+        # DEBUG DETALLADO DE CADA FORMULARIO
+        for i, item_form in enumerate(formset):
+            print(f"\n--- Form {i} ---")
+            print(f"Is valid: {item_form.is_valid()}")
+            print(f"Errors: {item_form.errors}")
+            print(f"Non field errors: {item_form.non_field_errors()}")
+            print(f"Data: {item_form.data}")
+            print(f"Cleaned data: {getattr(item_form, 'cleaned_data', 'Not available')}")
+            
+            # Verificar campos específicos
+            if 'product' in item_form.fields:
+                print(f"Product field value: {item_form['product'].value()}")
+            if 'quantity' in item_form.fields:
+                print(f"Quantity field value: {item_form['quantity'].value()}")

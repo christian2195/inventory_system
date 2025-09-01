@@ -51,9 +51,14 @@ class DispatchItem(models.Model):
         verbose_name = "Artículo de Despacho"
         verbose_name_plural = "Artículos de Despacho"
 
-    def save(self, *args, **kwargs):
-        if self.unit_price and self.quantity:
-            self.subtotal = self.quantity * self.unit_price
-        else:
-            self.subtotal = 0
-        super().save(*args, **kwargs)
+def save(self, *args, **kwargs):
+    if self.unit_price and self.quantity:
+        self.subtotal = self.quantity * self.unit_price
+    else:
+        self.subtotal = 0
+    super().save(*args, **kwargs)
+    
+    # Actualizar el total de la nota de despacho
+    if self.dispatch_note:
+        total = sum(item.subtotal for item in self.dispatch_note.items.all())
+        DispatchNote.objects.filter(pk=self.dispatch_note.pk).update(total=total)

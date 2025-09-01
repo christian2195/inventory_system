@@ -17,8 +17,10 @@ class DispatchNoteAdmin(admin.ModelAdmin):
         'supplier',    # <-- AÑADIDO
         'order_number',# <-- AÑADIDO
         'driver_name', # <-- AÑADIDO
-        'license_plate'# <-- AÑADIDO
+        'license_plate',# <-- AÑADIDO
+        'total'
     )
     list_filter = ('dispatch_date', 'status', 'client')
     search_fields = ('dispatch_number', 'client__name', 'notes')
     inlines = [DispatchItemInline]
+    readonly_fields = ('total',)
