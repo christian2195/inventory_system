@@ -226,6 +226,33 @@ class DispatchNotePrintView(LoginRequiredMixin, DetailView):
         
         return response
     
+# NUEVA VISTA
+def dispatch_note_confirm(request, pk):
+    dispatch_note = get_object_or_404(DispatchNote, pk=pk)
+    
+    if request.method == 'POST':
+        if dispatch_note.status == 'PENDING':
+            try:
+                with transaction.atomic():
+                    # 1. Actualizar el estado de la nota de despacho a 'DESPACHADO'
+                    dispatch_note.status = 'DISPATCHED'
+                    dispatch_note.save()
+                    
+                    # 2. Descontar el stock de cada producto
+                    for item in dispatch_note.items.all():
+                        product = item.product
+                        # Utilizamos F() para evitar condiciones de carrera y asegurar la atomicidad
+                        Product.objects.filter(pk=product.pk).update(current_stock=F('current_stock') - item.quantity)
+                        
+                    messages.success(request, f"La Nota de Despacho #{dispatch_note.dispatch_number} ha sido confirmada como 'Despachada'.")
+            except Exception as e:
+                messages.error(request, f"Ocurrió un error al despachar la nota: {e}")
+                
+        else:
+            messages.warning(request, "Esta nota de despacho ya ha sido despachada o cancelada.")
+    
+    return redirect('dispatch_notes:detail', pk=pk)
+    
 def product_search_api(request):
     try:
         product_id = request.GET.get('id')
@@ -288,3 +315,4 @@ def form_valid(self, form):
                 print(f"Product field value: {item_form['product'].value()}")
             if 'quantity' in item_form.fields:
                 print(f"Quantity field value: {item_form['quantity'].value()}")
+                

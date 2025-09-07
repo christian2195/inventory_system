@@ -10,5 +10,6 @@ urlpatterns = [
     path('<int:pk>/', views.DispatchNoteDetailView.as_view(), name='detail'),
     path('editar/<int:pk>/', views.DispatchNoteUpdateView.as_view(), name='update'),
     path('imprimir/<int:pk>/', views.DispatchNotePrintView.as_view(), name='print'),
+    path('despachar/<int:pk>/', views.dispatch_note_confirm, name='confirm_dispatch'),
     path('api/product-search/', views.product_search_api, name='product_search_api'),
 ]
