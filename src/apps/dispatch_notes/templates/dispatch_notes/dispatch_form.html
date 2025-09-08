@@ -52,6 +52,11 @@
                         <div class="d-flex justify-content-end">
                             <button type="button" class="btn-close remove-item" aria-label="Cerrar"></button>
                         </div>
+                        
+                        <!-- Campos ocultos necesarios -->
+                        {{ item_form.id }}
+                        {{ item_form.DELETE|default:"" }}
+                        
                         <div class="row g-3 align-items-end">
                             <div class="col-md-3">
                                 <div class="form-group">
@@ -60,6 +65,9 @@
                                     </label>
                                     {{ item_form.product_search }}
                                     <small class="form-text text-muted">Buscar por código</small>
+                                    {% if item_form.product_search.errors %}
+                                    <div class="text-danger">{{ item_form.product_search.errors }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -77,6 +85,9 @@
                                         {{ item_form.quantity.label }}
                                     </label>
                                     {{ item_form.quantity }}
+                                    {% if item_form.quantity.errors %}
+                                    <div class="text-danger">{{ item_form.quantity.errors }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="col-md-2">
@@ -85,12 +96,17 @@
                                         {{ item_form.unit_price.label }}
                                     </label>
                                     {{ item_form.unit_price }}
+                                    {% if item_form.unit_price.errors %}
+                                    <div class="text-danger">{{ item_form.unit_price.errors }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="col-md-2">
                                 <div class="form-group">
                                     {{ item_form.product }}
-                                    {{ item_form.id }}
+                                    {% if item_form.product.errors %}
+                                    <div class="text-danger">{{ item_form.product.errors }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -119,8 +135,12 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">Guardar Nota de Despacho</button>
-        <a href="{% url 'dispatch_notes:list' %}" class="btn btn-secondary">Cancelar</a>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Guardar Nota de Despacho</button>
+            <button type="button" id="debug-form-btn" class="btn btn-warning">Debug Form State</button>
+            <button type="button" id="debug-btn" class="btn btn-info">Debug Info</button>
+            <a href="{% url 'dispatch_notes:list' %}" class="btn btn-secondary">Cancelar</a>
+        </div>
     </form>
 </div>
 
@@ -200,25 +220,36 @@
             initProductSearch(newFormElement);
         });
 
-        // Función para eliminar item
+        // Función para eliminar item - CORREGIDA
         formsetContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('remove-item')) {
                 const formToRemove = e.target.closest('.formset-item');
                 if (formToRemove) {
-                    formToRemove.remove();
-                    const currentTotalForms = parseInt(totalForms.value);
-                    totalForms.value = currentTotalForms - 1;
-                    
-                    // Reindexar los forms restantes
-                    const forms = formsetContainer.querySelectorAll('.formset-item');
-                    forms.forEach((form, index) => {
-                        form.querySelectorAll('[name]').forEach(input => {
-                            const newName = input.name.replace(/-\d+-/g, `-${index}-`);
-                            input.name = newName;
-                            const newId = input.id.replace(/-\d+-/g, `-${index}-`);
-                            input.id = newId;
+                    // Buscar el checkbox DELETE si existe (para forms existentes)
+                    const deleteCheckbox = formToRemove.querySelector('input[name*="-DELETE"]');
+                    if (deleteCheckbox) {
+                        // Form existente: marcar el checkbox y ocultar
+                        deleteCheckbox.checked = true;
+                        formToRemove.style.display = 'none';
+                        console.log('Marked existing form for deletion');
+                    } else {
+                        // Form nuevo: eliminar directamente
+                        formToRemove.remove();
+                        const currentTotalForms = parseInt(totalForms.value);
+                        totalForms.value = currentTotalForms - 1;
+                        console.log('Removed new form');
+                        
+                        // Reindexar los forms restantes
+                        const forms = formsetContainer.querySelectorAll('.formset-item');
+                        forms.forEach((form, index) => {
+                            form.querySelectorAll('[name]').forEach(input => {
+                                const newName = input.name.replace(/-\d+-/g, `-${index}-`);
+                                input.name = newName;
+                                const newId = input.id.replace(/-\d+-/g, `-${index}-`);
+                                input.id = newId;
+                            });
                         });
-                    });
+                    }
                 }
             }
         });
@@ -289,30 +320,78 @@
             });
         }
 
-        // Función para autocompletar campos
+        // Función para autocompletar campos - COMPLETAMENTE CORREGIDA
         function autocompleteProductFields(searchInput, product) {
             const formsetItem = searchInput.closest('.formset-item');
             
-            console.log('Autocompleting fields for product:', product);
+            console.log('=== AUTCOMPLETE DEBUG START ===');
+            console.log('Product object:', product);
             
             // 1. Llenar el campo de búsqueda con el código
             if (searchInput) {
                 searchInput.value = product.product_code || '';
+                console.log('Search input set to:', searchInput.value);
             }
             
             // 2. Llenar el campo de descripción
             const descriptionInput = formsetItem.querySelector('input[name*="-product_description"]');
             if (descriptionInput && product.description) {
                 descriptionInput.value = product.description;
+                console.log('Description input set to:', descriptionInput.value);
             }
             
-            // 3. Buscar el campo hidden del producto y asignar el ID
-            const productIdInput = formsetItem.querySelector('input[name*="-product"]');
+            // 3. CORRECCIÓN PRINCIPAL: Encontrar el campo hidden del producto
+            let productIdInput = null;
+            
+            // Intentar diferentes selectores para encontrar el campo
+            const selectors = [
+                'input[name$="-product"]',
+                'input[type="hidden"][name*="product"]',
+                'input[name*="product"][type="hidden"]'
+            ];
+            
+            for (const selector of selectors) {
+                productIdInput = formsetItem.querySelector(selector);
+                if (productIdInput && !productIdInput.name.includes('search') && !productIdInput.name.includes('description')) {
+                    console.log('Found product field with selector:', selector);
+                    break;
+                }
+            }
+            
+            // Si aún no se encuentra, buscar manualmente
+            if (!productIdInput) {
+                console.log('Searching manually for product field...');
+                const allInputs = formsetItem.querySelectorAll('input[type="hidden"]');
+                for (const input of allInputs) {
+                    if (input.name.includes('product') && !input.name.includes('search') && !input.name.includes('description')) {
+                        productIdInput = input;
+                        console.log('Found product field manually:', input.name);
+                        break;
+                    }
+                }
+            }
+            
             if (productIdInput && product.id) {
                 productIdInput.value = product.id;
-                console.log(`Set product ID: ${productIdInput.name} = ${productIdInput.value}`);
+                console.log('✅ SUCCESS: Product ID input set to:', productIdInput.value);
+                console.log('Product field name:', productIdInput.name);
+                
+                // Disparar eventos para activar validación
+                const changeEvent = new Event('change', { bubbles: true });
+                const inputEvent = new Event('input', { bubbles: true });
+                productIdInput.dispatchEvent(changeEvent);
+                productIdInput.dispatchEvent(inputEvent);
             } else {
-                console.error('Product ID input not found or product has no ID');
+                console.error('❌ ERROR: Could not find product field or product has no ID');
+                console.log('ProductIdInput:', productIdInput);
+                console.log('Product ID:', product.id);
+                
+                // Debug detallado: mostrar todos los inputs en el form
+                const allInputs = formsetItem.querySelectorAll('input');
+                console.log('All inputs in form:');
+                allInputs.forEach(input => {
+                    console.log(`  ${input.name} = ${input.value} (type: ${input.type})`);
+                });
             }
             
             // 4. Autocompletar precio unitario
@@ -321,17 +400,23 @@
             
             if (unitPriceInput && product.unit_price) {
                 unitPriceInput.value = product.unit_price;
+                console.log('Unit price set to:', unitPriceInput.value);
             }
             
             if (quantityInput && !quantityInput.value) {
                 quantityInput.value = 1;
+                console.log('Quantity set to:', quantityInput.value);
             }
+            
+            console.log('=== AUTCOMPLETE DEBUG END ===');
         }
 
         // Función para cargar valores iniciales
         function loadInitialProductValues() {
-            document.querySelectorAll('input[name*="-product"]').forEach(hiddenInput => {
-                if (hiddenInput.value && hiddenInput.value.trim() !== '') {
+            document.querySelectorAll('input[name*="-product"][type="hidden"]').forEach(hiddenInput => {
+                if (hiddenInput.value && hiddenInput.value.trim() !== '' && 
+                    !hiddenInput.name.includes('search') && !hiddenInput.name.includes('description')) {
+                    
                     const formsetItem = hiddenInput.closest('.formset-item');
                     const searchInput = formsetItem.querySelector('.product-search');
                     const descriptionInput = formsetItem.querySelector('input[name*="-product_description"]');
@@ -356,29 +441,116 @@
                                     if (descriptionInput) descriptionInput.value = product.description || '';
                                     
                                     const unitPriceInput = formsetItem.querySelector('input[name*="-unit_price"]');
-                                    if (unitPriceInput && product.unit_price && !unitPriceInput.value) {
+                                    if (unitPriceInput && product.unit_price) {
                                         unitPriceInput.value = product.unit_price;
                                     }
                                 } else {
                                     console.warn('No product found for ID:', hiddenInput.value);
+                                    if (searchInput) {
+                                        searchInput.value = hiddenInput.value;
+                                    }
                                 }
                             })
                             .catch(error => {
                                 console.error('Error loading product:', error);
-                                // Fallback: intentar buscar por código si el ID falla
                                 if (searchInput) {
                                     searchInput.value = hiddenInput.value;
                                 }
                             });
                     } else {
-                        // Si no es numérico, usar el valor como código de producto
-                        if (searchInput && !searchInput.value) {
+                        if (searchInput) {
                             searchInput.value = hiddenInput.value;
                         }
                     }
                 }
             });
         }
+
+        // Botón de debug para testing
+        document.getElementById('debug-btn').addEventListener('click', function() {
+            console.log('=== DEBUG INFO ===');
+            console.log('Total forms:', document.querySelector('input[name$="TOTAL_FORMS"]').value);
+            
+            document.querySelectorAll('input[name*="-product"]').forEach((input, index) => {
+                console.log(`Product ${index}:`, input.value);
+                console.log(`Field name:`, input.name);
+            });
+            
+            document.querySelectorAll('.product-search').forEach((input, index) => {
+                console.log(`Search ${index}:`, input.value);
+            });
+        });
+
+        // Botón para ver el estado del formulario
+        document.getElementById('debug-form-btn').addEventListener('click', function() {
+            console.log('=== FORM STATE DEBUG ===');
+            
+            // Mostrar todos los campos de producto
+            const productInputs = document.querySelectorAll('input[name*="-product"][type="hidden"]');
+            console.log('Product inputs found:', productInputs.length);
+            
+            productInputs.forEach((input, index) => {
+                if (!input.name.includes('search') && !input.name.includes('description')) {
+                    console.log(`Product ${index + 1}:`);
+                    console.log('  Name:', input.name);
+                    console.log('  Value:', input.value);
+                    console.log('  ID:', input.id);
+                    
+                    const formsetItem = input.closest('.formset-item');
+                    const searchInput = formsetItem.querySelector('.product-search');
+                    const descInput = formsetItem.querySelector('input[name*="-product_description"]');
+                    
+                    console.log('  Search value:', searchInput ? searchInput.value : 'N/A');
+                    console.log('  Description value:', descInput ? descInput.value : 'N/A');
+                }
+            });
+        });
+
+        // Validación del formulario al enviar
+        document.getElementById('dispatch-form').addEventListener('submit', function(e) {
+            console.log("=== FORM SUBMIT VALIDATION ===");
+            
+            let isValid = true;
+            const emptyFields = [];
+            
+            // Verificar todos los campos de producto hidden
+            document.querySelectorAll('input[name*="-product"][type="hidden"]').forEach((input, index) => {
+                if (!input.name.includes('search') && !input.name.includes('description')) {
+                    const formsetItem = input.closest('.formset-item');
+                    
+                    // Saltar forms marcados para eliminación
+                    const deleteInput = formsetItem.querySelector('input[name*="-DELETE"]');
+                    if (deleteInput && deleteInput.checked) {
+                        console.log(`Skipping deleted form ${index}`);
+                        return;
+                    }
+                    
+                    if (!input.value || input.value.trim() === '') {
+                        console.error(`EMPTY PRODUCT FIELD: ${input.name}`);
+                        isValid = false;
+                        emptyFields.push(`Producto ${index + 1}`);
+                        
+                        // Resaltar en rojo
+                        const searchInput = formsetItem.querySelector('.product-search');
+                        if (searchInput) {
+                            searchInput.style.borderColor = 'red';
+                            searchInput.style.boxShadow = '0 0 5px red';
+                        }
+                    } else {
+                        console.log(`✅ VALID PRODUCT FIELD: ${input.name} = ${input.value}`);
+                    }
+                }
+            });
+            
+            if (!isValid) {
+                e.preventDefault();
+                const errorMsg = `Por favor, complete la selección de productos para: ${emptyFields.join(', ')}`;
+                alert(errorMsg);
+                console.error('Form submission blocked:', errorMsg);
+            } else {
+                console.log('✅ Form validation passed - submitting...');
+            }
+        });
 
         // Inicializar búsqueda para todos los campos existentes
         document.querySelectorAll('.product-search').forEach(input => {
@@ -403,24 +575,17 @@
         // Cargar valores iniciales cuando la página esté lista
         setTimeout(loadInitialProductValues, 500);
     });
-// Debug: Verificar el estado del formulario antes de enviar
-document.getElementById('dispatch-form').addEventListener('submit', function(e) {
-    console.log("=== FORM SUBMIT DEBUG ===");
+        // Debug temporal del formset
+    console.log("=== FORMSET DEBUG ===");
+    console.log("Total forms:", "{{ formset.total_form_count }}");
+    console.log("Initial forms:", "{{ formset.initial_form_count }}");
     
-    // Verificar todos los campos de productos
-    document.querySelectorAll('input[name*="-product"]').forEach(input => {
-        console.log(`${input.name}: '${input.value}'`);
-    });
+    {% for form in formset %}
+    console.log("Form {{ forloop.counter0 }}:");
+    console.log("  Product:", "{{ form.product.value|default:'Empty' }}");
+    console.log("  Product search:", "{{ form.product_search.value|default:'Empty' }}");
+    {% endfor %}
     
-    // Verificar campos required
-    const requiredFields = this.querySelectorAll('[required]');
-    requiredFields.forEach(field => {
-        console.log(`${field.name}: '${field.value}' ${field.value ? '✓' : '✗ EMPTY'}`);
-    });
-    
-    // Continuar con el envío
-    console.log("Form submitted successfully");
-});
 </script>
 
 <style>

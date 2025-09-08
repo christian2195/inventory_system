@@ -38,12 +38,6 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
             context['formset'] = DispatchItemFormSet()
         return context
 
-    def post(self, request, *args, **kwargs):
-        print("=== DEBUG CREATE POST ===")
-        print("POST data keys:", list(request.POST.keys()))
-        # No imprimir todo el POST porque puede ser muy largo
-        return super().post(request, *args, **kwargs)
-
     def form_valid(self, form):
         context = self.get_context_data()
         formset = context['formset']
@@ -52,15 +46,26 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
         print(f"Form is valid: {form.is_valid()}")
         print(f"Formset is valid: {formset.is_valid()}")
         
-        if not form.is_valid():
-            print("Form errors:", form.errors)
-            
         if not formset.is_valid():
             print("Formset errors:", formset.errors)
             print("Formset non-form errors:", formset.non_form_errors())
+            
+            # DEBUG DETALLADO DE CADA FORMULARIO
             for i, item_form in enumerate(formset):
+                print(f"\n--- Form {i} ---")
+                print(f"Is valid: {item_form.is_valid()}")
                 if not item_form.is_valid():
-                    print(f"Form {i} errors:", item_form.errors)
+                    print(f"Errors: {item_form.errors}")
+                    print(f"Non field errors: {item_form.non_field_errors()}")
+                    print(f"Cleaned data: {getattr(item_form, 'cleaned_data', 'Not available')}")
+                    
+                    # Debug específico de campos
+                    for field_name, field in item_form.fields.items():
+                        field_value = item_form[field_name].value()
+                        print(f"Field {field_name}: {field_value}")
+                        
+                        if field_name == 'product' and not field_value:
+                            print(f"❌ EMPTY PRODUCT FIELD: {field_name}")
         
         with transaction.atomic():
             self.object = form.save(commit=False)
@@ -71,10 +76,12 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                 formset.instance = self.object
                 items_to_save = formset.save(commit=False)
                 for item in items_to_save:
+                    # Asegurarse de que el producto esté establecido
+                    if not item.product:
+                        print(f"⚠️  Skipping item without product: {item}")
+                        continue
                     item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
                     item.save()
-                    # COMENTA TEMPORALMENTE LA ACTUALIZACIÓN DE STOCK
-                    # Product.objects.filter(pk=item.product.pk).update(current_stock=F('current_stock') - item.quantity)
                 
                 # Guarda los elementos eliminados
                 for obj in formset.deleted_objects:
@@ -91,8 +98,13 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
         return redirect(self.get_success_url())
     
     def form_invalid(self, form, formset=None):
-        if formset is None:
-            formset = DispatchItemFormSet(self.request.POST)
+        print("=== FORM INVALID ===")
+        print(f"Form errors: {form.errors}")
+        if formset:
+            print(f"Formset errors: {formset.errors}")
+            for i, item_form in enumerate(formset):
+                if not item_form.is_valid():
+                    print(f"Form {i} errors: {item_form.errors}")
         context = self.get_context_data(form=form, formset=formset)
         return self.render_to_response(context)
 
@@ -267,26 +279,38 @@ def product_search_api(request):
                 products = Product.objects.filter(pk=product_id_int).values(
                     'id', 'product_code', 'description', 'unit_price', 'current_stock'
                 )
+                print(f"Search by ID {product_id_int}: Found {products.count()} products")
             except (ValueError, TypeError):
                 # Si no es un número, buscar por código de producto
+                print(f"Search by code/description: {product_id}")
                 products = Product.objects.filter(
                     Q(product_code__iexact=product_id) | Q(description__icontains=product_id)
                 ).values('id', 'product_code', 'description', 'unit_price', 'current_stock')[:1]
         
         elif query:
             # Búsqueda por texto
+            print(f"Search by query: {query}")
             products = Product.objects.filter(
                 Q(product_code__icontains=query) | Q(description__icontains=query)
             ).values('id', 'product_code', 'description', 'unit_price', 'current_stock')[:10]
+            print(f"Found {products.count()} products for query: {query}")
         else:
             products = Product.objects.none()
+            print("No search criteria provided")
         
         products_list = list(products)
         print(f"DEBUG API: Returning {len(products_list)} products")
+        
+        # Debug: mostrar qué productos se están devolviendo
+        for product in products_list:
+            print(f"  - {product['id']}: {product['product_code']} - {product['description']}")
+            
         return JsonResponse(products_list, safe=False)
         
     except Exception as e:
         print(f"ERROR in product_search_api: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 def form_valid(self, form):
@@ -315,4 +339,26 @@ def form_valid(self, form):
                 print(f"Product field value: {item_form['product'].value()}")
             if 'quantity' in item_form.fields:
                 print(f"Quantity field value: {item_form['quantity'].value()}")
+                
+def form_valid(self, form, formset):
+    print("=== DEBUG FORM VALIDATION UPDATE ===")
+    print(f"Form is valid: {form.is_valid()}")
+    print(f"Formset is valid: {formset.is_valid()}")
+    
+    if not form.is_valid():
+        print("Form errors:", form.errors)
+        
+    if not formset.is_valid():
+        print("Formset errors:", formset.errors)
+        print("Formset non-form errors:", formset.non_form_errors())
+        for i, item_form in enumerate(formset):
+            print(f"\n--- Form {i} ---")
+            print(f"Is valid: {item_form.is_valid()}")
+            if not item_form.is_valid():
+                print(f"Errors: {item_form.errors}")
+                print(f"Cleaned data: {getattr(item_form, 'cleaned_data', 'Not available')}")
+                # Debug específico del campo product
+                if 'product' in item_form.errors:
+                    print(f"Product field value: {item_form['product'].value()}")
+                    print(f"Product search value: {item_form['product_search'].value() if 'product_search' in item_form.fields else 'N/A'}")
                 

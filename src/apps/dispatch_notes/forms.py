@@ -2,6 +2,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 from .models import DispatchNote, DispatchItem
+from apps.inventory.models import Product
 
 class DispatchNoteForm(forms.ModelForm):
     class Meta:
@@ -34,13 +35,14 @@ class DispatchNoteForm(forms.ModelForm):
         }
 
 class DispatchItemForm(forms.ModelForm):
+    # Campo para la búsqueda que no está en el modelo
     product_search = forms.CharField(
+        label='Buscar Producto',
         required=False,
         widget=forms.TextInput(attrs={
-            'class': 'form-control product-search',
-            'placeholder': 'Buscar por código...'
-        }),
-        label="Código Producto"
+            'class': 'form-control product-search', 
+            'placeholder': 'Buscar por código o descripción...'
+        })
     )
     
     product_description = forms.CharField(
@@ -57,39 +59,68 @@ class DispatchItemForm(forms.ModelForm):
         model = DispatchItem
         fields = ['product', 'quantity', 'unit_price', 'brand', 'model']
         widgets = {
-            'product': forms.HiddenInput(),
-            'quantity': forms.NumberInput(attrs={
-                'class': 'form-control', 
-                'min': '1',
-                'placeholder': 'Cantidad'
-            }),
-            'unit_price': forms.NumberInput(attrs={
-                'class': 'form-control', 
-                'step': '0.01',
-                'placeholder': '0.00'
-            }),
-            'brand': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Marca'
-            }),
-            'model': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Modelo'
-            }),
+            'product': forms.HiddenInput(), # Campo oculto para guardar el ID
+            'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+            'brand': forms.TextInput(attrs={'class': 'form-control'}),
+            'model': forms.TextInput(attrs={'class': 'form-control'}),
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Cargar descripción del producto si existe
-        if self.instance and self.instance.pk and self.instance.product_id:
+        # Si el formulario ya tiene una instancia, cargamos el valor del campo de búsqueda
+        if self.instance and self.instance.pk and self.instance.product:
+            self.fields['product_search'].initial = self.instance.product.product_code
+            self.fields['product_description'].initial = self.instance.product.description
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        product = cleaned_data.get('product')
+        product_search = cleaned_data.get('product_search')
+        
+        print(f"=== CLEAN DEBUG ===")
+        print(f"Product: {product}")
+        print(f"Product search: {product_search}")
+        
+        # Si no hay producto seleccionado pero hay búsqueda, intentar encontrar el producto
+        if not product and product_search:
             try:
-                product = Product.objects.filter(pk=self.instance.product_id).first()
-                if product:
-                    self.fields['product_description'].initial = product.description
-                    self.fields['product_search'].initial = product.product_code
-            except Exception:
-                pass
+                # Buscar por código de producto
+                product_obj = Product.objects.get(product_code=product_search)
+                cleaned_data['product'] = product_obj
+                self.instance.product = product_obj
+                print(f"Found product by code: {product_obj}")
+            except Product.DoesNotExist:
+                # Si no se encuentra por código, buscar por descripción
+                try:
+                    product_obj = Product.objects.get(description__icontains=product_search)
+                    cleaned_data['product'] = product_obj
+                    self.instance.product = product_obj
+                    print(f"Found product by description: {product_obj}")
+                except (Product.DoesNotExist, Product.MultipleObjectsReturned):
+                    self.add_error('product_search', 'No se pudo encontrar el producto')
+                    print(f"Product not found: {product_search}")
+        
+        # Validar que el producto sea requerido
+        if not cleaned_data.get('product'):
+            self.add_error('product', 'Este campo es requerido')
+            self.add_error('product_search', 'Debe seleccionar un producto')
+            print("❌ Product field is required")
+        
+        return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Si tenemos un producto pero no precio unitario, usar el precio del producto
+        if instance.product and not instance.unit_price:
+            instance.unit_price = instance.product.unit_price
+        
+        if commit:
+            instance.save()
+        
+        return instance
             
 DispatchItemFormSet = inlineformset_factory(
     DispatchNote,
@@ -97,5 +128,7 @@ DispatchItemFormSet = inlineformset_factory(
     form=DispatchItemForm,
     extra=1,
     can_delete=True,
-    max_num=500
+    max_num=500,
+    validate_max=False,  # No validar máximo si hay forms vacíos
+    exclude=[]  # Asegurar que no excluya campos necesarios
 )
