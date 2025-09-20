@@ -524,6 +524,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log("=== INICIANDO APLICACIÓN DE DESPACHO ===");
+    
     // Variables globales
     let products = [];
     let currentFormIndex = parseInt("{{ formset.total_form_count }}") || 0;
@@ -531,20 +533,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const formsetContainer = document.getElementById('formset-container');
     const emptyFormTemplate = document.getElementById('empty-form-template');
     
+    // Función para esperar que un elemento exista
+    function waitForElement(selector, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            const interval = setInterval(() => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    clearInterval(interval);
+                    resolve(element);
+                } else if (Date.now() - startTime >= timeout) {
+                    clearInterval(interval);
+                    reject(new Error(`Elemento ${selector} no encontrado después de ${timeout}ms`));
+                }
+            }, 100);
+        });
+    }
+    
     // Inicializar la aplicación
-    function init() {
-        console.log("Inicializando aplicación...");
-        loadProducts();
-        setupEventListeners();
-        updateSummary();
-        updateTotals();
-        loadExistingProductData();
+    async function init() {
+        console.log("1. Inicializando aplicación...");
+        
+        try {
+            // Esperar a que los elementos críticos carguen
+            await waitForElement('#formset-container');
+            await waitForElement('#product-list');
+            
+            loadProducts();
+            setupEventListeners();
+            updateSummary();
+            loadExistingProductData();
+            console.log("✅ Aplicación inicializada correctamente");
+        } catch (error) {
+            console.error('❌ Error inicializando aplicación:', error);
+            // Reintentar después de un segundo
+            setTimeout(init, 1000);
+        }
     }
     
     // Cargar productos desde la API
     function loadProducts() {
-        console.log("Cargando productos...");
-        // Mostrar estado de carga
+        console.log("2. Cargando productos desde API...");
+        
         document.getElementById('product-list').innerHTML = `
             <div class="list-group-item text-center text-muted py-4">
                 <div class="loading-spinner mx-auto mb-2"></div>
@@ -554,38 +584,37 @@ document.addEventListener('DOMContentLoaded', function() {
         
         fetch("{% url 'dispatch_notes:product_search_api' %}?all=true")
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error en la respuesta de la API');
-                }
+                if (!response.ok) throw new Error('Error en la API');
                 return response.json();
             })
             .then(data => {
-                console.log("Productos recibidos:", data);
-                if (data && Array.isArray(data)) {
-                    products = data;
-                    renderProductList();
-                } else {
-                    throw new Error('Formato de respuesta inválido');
-                }
+                console.log("✅ Productos cargados:", data.length);
+                products = data;
+                renderProductList();
             })
             .catch(error => {
-                console.error('Error loading products:', error);
-                document.getElementById('product-list').innerHTML = `
-                    <div class="list-group-item text-center text-danger py-4">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <small>Error cargando productos</small>
-                    </div>
-                    <div class="list-group-item text-center">
-                        <button class="btn btn-sm btn-primary" onclick="loadProducts()">
-                            <i class="fas fa-redo me-2"></i>Reintentar
-                        </button>
-                    </div>
-                `;
+                console.error('❌ Error cargando productos:', error);
+                showProductError();
             });
+    }
+    
+    function showProductError() {
+        document.getElementById('product-list').innerHTML = `
+            <div class="list-group-item text-center text-danger py-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <small>Error cargando productos</small>
+            </div>
+            <div class="list-group-item text-center">
+                <button class="btn btn-sm btn-primary" onclick="window.loadProducts()">
+                    <i class="fas fa-redo me-2"></i>Reintentar
+                </button>
+            </div>
+        `;
     }
     
     // Renderizar la lista de productos
     function renderProductList(filter = 'all') {
+        console.log("3. Renderizando lista de productos...");
         const productList = document.getElementById('product-list');
         
         if (products.length === 0) {
@@ -598,10 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        let filteredProducts = products;
-        if (filter !== 'all') {
-            filteredProducts = products.filter(p => p.category === filter);
-        }
+        let filteredProducts = filter === 'all' ? products : products.filter(p => p.category === filter);
         
         if (filteredProducts.length === 0) {
             productList.innerHTML = `
@@ -616,175 +642,328 @@ document.addEventListener('DOMContentLoaded', function() {
         productList.innerHTML = '';
         
         filteredProducts.forEach(product => {
-            const productItem = document.createElement('div');
-            productItem.className = 'list-group-item product-item';
-            productItem.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                        <div class="fw-bold small">${product.product_code || 'Sin código'}</div>
-                        <div class="text-muted" style="font-size: 12px;">${product.description || 'Sin descripción'}</div>
-                    </div>
-                    <div class="text-end">
-                        <div class="product-price">$${product.unit_price || '0.00'}</div>
-                        <div class="product-stock">Stock: ${product.current_stock || 'N/A'}</div>
-                    </div>
-                </div>
-            `;
-            
-            productItem.addEventListener('click', () => {
-                console.log("Producto clickeado:", product);
-                addProductToFormset(product);
-            });
-            
+            const productItem = createProductItem(product);
             productList.appendChild(productItem);
         });
+        
+        console.log(`✅ ${filteredProducts.length} productos renderizados`);
     }
     
-    // Añadir producto al formset - FUNCIÓN CRÍTICA
-    function addProductToFormset(product) {
-        console.log("Añadiendo producto:", product);
+    function createProductItem(product) {
+        const productItem = document.createElement('div');
+        productItem.className = 'list-group-item product-item';
+        productItem.style.cursor = 'pointer';
+        productItem.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                    <div class="fw-bold small">${product.product_code || 'Sin código'}</div>
+                    <div class="text-muted" style="font-size: 12px;">${product.description || 'Sin descripción'}</div>
+                </div>
+                <div class="text-end">
+                    <div class="product-price">$${product.unit_price || '0.00'}</div>
+                    <div class="product-stock">Stock: ${product.current_stock || 'N/A'}</div>
+                </div>
+            </div>
+        `;
         
-        // Verificar si el producto ya está en el formset
-        const existingItems = document.querySelectorAll('.formset-item');
-        for (let item of existingItems) {
-            if (item.style.display !== 'none') {
-                const productIdInput = item.querySelector('.product-id');
-                if (productIdInput && productIdInput.value == product.id) {
-                    // Incrementar cantidad si ya existe
-                    const quantityInput = item.querySelector('.quantity');
-                    quantityInput.value = parseInt(quantityInput.value || 1) + 1;
-                    updateItemTotal(item);
-                    updateTotals();
-                    
-                    // Efecto visual
-                    item.classList.add('bg-warning');
-                    setTimeout(() => item.classList.remove('bg-warning'), 1000);
-                    return;
-                }
-            }
+        productItem.addEventListener('click', function(e) {
+            console.log("🖱️ Producto clickeado:", product);
+            addProductToFormset(product);
+            e.stopPropagation();
+        });
+        
+        return productItem;
+    }
+    
+    // Añadir producto al formset - FUNCIÓN PRINCIPAL
+    function addProductToFormset(product) {
+        console.log("4. Añadiendo producto al formset:", product);
+        
+        // Primero buscar items vacíos existentes
+        const emptyItems = document.querySelectorAll('.formset-item[data-isEmpty="true"]');
+        if (emptyItems.length > 0) {
+            console.log("Usando item vacío existente");
+            const emptyItem = emptyItems[0];
+            fillEmptyItem(emptyItem, product);
+            return;
+        }
+        
+        // Verificar si el producto ya existe en items no vacíos
+        const existingItem = findExistingProductItem(product.id);
+        if (existingItem) {
+            incrementProductQuantity(existingItem);
+            return;
         }
         
         // Crear nuevo item
+        const newFormElement = createNewFormElement(product);
+        formsetContainer.appendChild(newFormElement);
+        
+        // Actualizar contadores
+        currentFormIndex++;
+        if (totalForms) {
+            totalForms.value = currentFormIndex;
+        }
+        
+        // Configurar eventos y actualizar
+        setupItemEventListeners(newFormElement);
+        updateItemTotal(newFormElement);
+        updateTotals();
+        
+        console.log("✅ Producto añadido exitosamente");
+    }
+    
+    function findExistingProductItem(productId) {
+        const items = document.querySelectorAll('.formset-item');
+        for (let item of items) {
+            if (item.style.display !== 'none') {
+                const existingProductId = item.querySelector('.product-id')?.value;
+                if (existingProductId == productId) {
+                    return item;
+                }
+            }
+        }
+        return null;
+    }
+    
+    function incrementProductQuantity(item) {
+        const quantityInput = item.querySelector('.quantity');
+        if (quantityInput) {
+            quantityInput.value = parseInt(quantityInput.value || 1) + 1;
+            updateItemTotal(item);
+            updateTotals();
+            
+            // Efecto visual
+            item.classList.add('bg-warning');
+            setTimeout(() => item.classList.remove('bg-warning'), 1000);
+            console.log("✅ Cantidad incrementada");
+        }
+    }
+    
+    function createNewFormElement(product) {
         const newFormHtml = emptyFormTemplate.innerHTML.replace(/__prefix__/g, currentFormIndex);
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = newFormHtml;
         const newFormElement = tempDiv.firstElementChild;
         
-        // Configurar los valores del producto
+        // Configurar valores
         const productName = newFormElement.querySelector('.product-name');
         const productCode = newFormElement.querySelector('.product-code');
         const productIdInput = newFormElement.querySelector('.product-id');
         const unitPriceInput = newFormElement.querySelector('.unit-price');
         const quantityInput = newFormElement.querySelector('.quantity');
         const productDataInput = newFormElement.querySelector('.product-data');
+        const deleteInput = newFormElement.querySelector('[name$="-DELETE"]');
+        const idInput = newFormElement.querySelector('[name$="-id"]');
         
         // Establecer valores
-        productName.textContent = product.description || 'Producto';
-        productName.innerHTML = `<i class="fas fa-check-circle me-2 text-success"></i>${productName.textContent}`;
+        if (productName) {
+            productName.innerHTML = `<i class="fas fa-check-circle me-2 text-success"></i>${product.description || 'Producto'}`;
+        }
+        if (productCode) {
+            productCode.textContent = product.product_code ? `Código: ${product.product_code}` : `ID: ${product.id}`;
+        }
+        if (productIdInput) {
+            productIdInput.value = product.id;
+            productIdInput.name = `form-${currentFormIndex}-product`;
+        }
+        if (unitPriceInput) {
+            unitPriceInput.value = product.unit_price || '0.00';
+            unitPriceInput.name = `form-${currentFormIndex}-unit_price`;
+        }
+        if (quantityInput) {
+            quantityInput.value = '1';
+            quantityInput.name = `form-${currentFormIndex}-quantity`;
+        }
+        if (productDataInput) {
+            productDataInput.value = JSON.stringify(product);
+        }
+        if (deleteInput) {
+            deleteInput.name = `form-${currentFormIndex}-DELETE`;
+            deleteInput.value = '';
+        }
+        if (idInput) {
+            idInput.name = `form-${currentFormIndex}-id`;
+            idInput.value = '';
+        }
         
-        productCode.textContent = product.product_code ? `Código: ${product.product_code}` : `ID: ${product.id}`;
-        productIdInput.value = product.id;
-        productIdInput.name = `form-${currentFormIndex}-product`;
-        
-        unitPriceInput.value = product.unit_price || '0.00';
-        unitPriceInput.name = `form-${currentFormIndex}-unit_price`;
-        
-        quantityInput.value = '1';
-        quantityInput.name = `form-${currentFormIndex}-quantity`;
-        
-        productDataInput.value = JSON.stringify(product);
         newFormElement.dataset.productId = product.id;
+        newFormElement.dataset.isEmpty = 'false';
         
-        // Configurar otros campos
-        const deleteInput = newFormElement.querySelector('[name$="-DELETE"]');
-        deleteInput.name = `form-${currentFormIndex}-DELETE`;
+        return newFormElement;
+    }
+    
+    // Llenar item vacío con producto
+    function fillEmptyItem(item, product) {
+        console.log("Llenando item vacío con producto:", product);
         
-        const idInput = newFormElement.querySelector('[name$="-id"]');
-        idInput.name = `form-${currentFormIndex}-id`;
+        const productName = item.querySelector('.product-name');
+        const productCode = item.querySelector('.product-code');
+        const productIdInput = item.querySelector('.product-id');
+        const unitPriceInput = item.querySelector('.unit-price');
+        const quantityInput = item.querySelector('.quantity');
+        const productDataInput = item.querySelector('.product-data');
         
-        // Añadir al contenedor
-        formsetContainer.appendChild(newFormElement);
+        // Actualizar valores
+        if (productName) {
+            productName.innerHTML = `<i class="fas fa-check-circle me-2 text-success"></i>${product.description || 'Producto'}`;
+        }
+        if (productCode) {
+            productCode.textContent = product.product_code ? `Código: ${product.product_code}` : `ID: ${product.id}`;
+        }
+        if (productIdInput) {
+            productIdInput.value = product.id;
+        }
+        if (unitPriceInput) {
+            unitPriceInput.value = product.unit_price || '0.00';
+        }
+        if (quantityInput) {
+            quantityInput.value = '1';
+        }
+        if (productDataInput) {
+            productDataInput.value = JSON.stringify(product);
+        }
         
-        // Actualizar contadores
-        currentFormIndex++;
-        totalForms.value = currentFormIndex;
-        
-        // Configurar event listeners para el nuevo item
-        setupItemEventListeners(newFormElement);
+        // Quitar marca de item vacío
+        item.dataset.isEmpty = 'false';
+        item.dataset.productId = product.id;
         
         // Actualizar totales
-        updateItemTotal(newFormElement);
+        updateItemTotal(item);
         updateTotals();
         
-        console.log("Producto añadido exitosamente");
+        console.log("✅ Item vacío convertido a producto");
     }
     
-    // Configurar event listeners para los items
-    function setupItemEventListeners(item) {
-        const quantityInput = item.querySelector('.quantity');
-        const priceInput = item.querySelector('.unit-price');
-        const removeBtn = item.querySelector('.remove-item');
-        
-        if (quantityInput) {
-            quantityInput.addEventListener('change', () => updateItemTotal(item));
-            quantityInput.addEventListener('input', () => updateItemTotal(item));
-        }
-        
-        if (priceInput) {
-            priceInput.addEventListener('change', () => updateItemTotal(item));
-            priceInput.addEventListener('input', () => updateItemTotal(item));
-        }
-        
-        if (removeBtn) {
-            removeBtn.addEventListener('click', () => {
-                const deleteInput = item.querySelector('input[name$="-DELETE"]');
-                const idInput = item.querySelector('input[name$="-id"]');
-                
-                if (deleteInput && idInput && idInput.value) {
-                    // Item existente: marcar para eliminación
-                    deleteInput.value = 'on';
-                    item.style.display = 'none';
-                } else {
-                    // Item nuevo: eliminar directamente
-                    item.remove();
-                    // Actualizar contador
-                    const currentTotalForms = parseInt(totalForms.value);
-                    totalForms.value = currentTotalForms - 1;
-                }
-                updateTotals();
-            });
-        }
-    }
-    
-    // Actualizar el total de un item
+    // Actualizar el total de un item - FUNCIÓN CORREGIDA
     function updateItemTotal(item) {
-        const quantity = parseFloat(item.querySelector('.quantity').value) || 0;
-        const price = parseFloat(item.querySelector('.unit-price').value) || 0;
-        const total = quantity * price;
-        
-        const totalElement = item.querySelector('.total-price');
-        if (totalElement) {
+        try {
+            const quantityInput = item.querySelector('.quantity');
+            const priceInput = item.querySelector('.unit-price');
+            const totalElement = item.querySelector('.total-price');
+            
+            if (!quantityInput || !priceInput || !totalElement) {
+                console.warn('Elementos no encontrados para calcular total');
+                return;
+            }
+            
+            const quantity = parseFloat(quantityInput.value) || 0;
+            const price = parseFloat(priceInput.value) || 0;
+            const total = quantity * price;
+            
             totalElement.textContent = `$${total.toFixed(2)}`;
+        } catch (error) {
+            console.error('Error en updateItemTotal:', error);
         }
     }
     
-    // Actualizar todos los totales
+    // Actualizar todos los totales - FUNCIÓN CORREGIDA
     function updateTotals() {
-        let orderTotal = 0;
-        let itemsCount = 0;
-        
-        document.querySelectorAll('.formset-item').forEach(item => {
-            if (item.style.display !== 'none') {
-                const quantity = parseFloat(item.querySelector('.quantity').value) || 0;
-                const price = parseFloat(item.querySelector('.unit-price').value) || 0;
-                orderTotal += quantity * price;
-                itemsCount += quantity;
+        try {
+            let orderTotal = 0;
+            let itemsCount = 0;
+            
+            const formsetItems = document.querySelectorAll('.formset-item');
+            
+            formsetItems.forEach(item => {
+                if (item.style.display !== 'none') {
+                    const quantityInput = item.querySelector('.quantity');
+                    const priceInput = item.querySelector('.unit-price');
+                    
+                    if (quantityInput && priceInput) {
+                        const quantity = parseFloat(quantityInput.value) || 0;
+                        const price = parseFloat(priceInput.value) || 0;
+                        orderTotal += quantity * price;
+                        itemsCount += quantity;
+                        
+                        // Actualizar el total individual de cada item
+                        updateItemTotal(item);
+                    }
+                }
+            });
+            
+            // Actualizar totales generales solo si los elementos existen
+            const orderTotalElement = document.getElementById('order-total');
+            const totalItemsElement = document.getElementById('total-items');
+            const itemsCountElement = document.getElementById('items-count');
+            
+            if (orderTotalElement) orderTotalElement.textContent = `$${orderTotal.toFixed(2)}`;
+            if (totalItemsElement) totalItemsElement.textContent = `${itemsCount} items`;
+            if (itemsCountElement) itemsCountElement.textContent = `${itemsCount} items`;
+            
+        } catch (error) {
+            console.error('Error en updateTotals:', error);
+        }
+    }
+    
+    // Configurar event listeners para los items - FUNCIÓN CORREGIDA
+    function setupItemEventListeners(item) {
+        try {
+            const quantityInput = item.querySelector('.quantity');
+            const priceInput = item.querySelector('.unit-price');
+            const removeBtn = item.querySelector('.remove-item');
+            
+            if (quantityInput) {
+                quantityInput.addEventListener('change', () => {
+                    updateItemTotal(item);
+                    updateTotals();
+                });
+                quantityInput.addEventListener('input', () => {
+                    updateItemTotal(item);
+                    updateTotals();
+                });
             }
-        });
+            
+            if (priceInput) {
+                priceInput.addEventListener('change', () => {
+                    updateItemTotal(item);
+                    updateTotals();
+                });
+                priceInput.addEventListener('input', () => {
+                    updateItemTotal(item);
+                    updateTotals();
+                });
+            }
+            
+            if (removeBtn) {
+                removeBtn.addEventListener('click', () => {
+                    removeItem(item);
+                });
+            }
+        } catch (error) {
+            console.error('Error en setupItemEventListeners:', error);
+        }
+    }
+    
+    function removeItem(item) {
+        const productIdInput = item.querySelector('.product-id');
+        const deleteInput = item.querySelector('input[name$="-DELETE"]');
+        const idInput = item.querySelector('input[name$="-id"]');
+        const isEmpty = item.dataset.isEmpty === 'true';
         
-        document.getElementById('order-total').textContent = `$${orderTotal.toFixed(2)}`;
-        document.getElementById('total-items').textContent = `${itemsCount} items`;
-        document.getElementById('items-count').textContent = `${itemsCount} items`;
+        if (isEmpty) {
+            // Es un item vacío, eliminarlo completamente
+            item.remove();
+            currentFormIndex--;
+            if (totalForms) {
+                totalForms.value = currentFormIndex;
+            }
+        } else if (idInput && idInput.value) {
+            // Item existente con ID, marcar para eliminación
+            if (deleteInput) {
+                deleteInput.value = 'on';
+                item.style.display = 'none';
+            }
+        } else {
+            // Item nuevo sin ID, eliminarlo completamente
+            item.remove();
+            currentFormIndex--;
+            if (totalForms) {
+                totalForms.value = currentFormIndex;
+            }
+        }
+        
+        updateTotals();
     }
     
     // Actualizar el resumen
@@ -799,14 +978,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const summaryElement = document.getElementById(`summary-${field}`);
             
             if (input && summaryElement) {
-                // Establecer valor inicial
                 summaryElement.textContent = input.value || 'N/A';
-                
-                // Actualizar cuando cambie
-                input.addEventListener('change', () => {
-                    summaryElement.textContent = input.value || 'N/A';
-                });
-                
                 input.addEventListener('input', () => {
                     summaryElement.textContent = input.value || 'N/A';
                 });
@@ -814,163 +986,333 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Configurar todos los event listeners
-    function setupEventListeners() {
-        console.log("Configurando event listeners...");
+    // Cargar datos de productos existentes - FUNCIÓN CORREGIDA
+    function loadExistingProductData() {
+        console.log("5. Cargando productos existentes...");
+        try {
+            const formsetItems = document.querySelectorAll('.formset-item');
+            console.log('Encontrados', formsetItems.length, 'items existentes');
+            
+            formsetItems.forEach((item, index) => {
+                const productId = item.querySelector('[name$="-product"]')?.value;
+                console.log(`Item ${index}: productId =`, productId);
+                
+                // Verificar si es un item vacío por defecto
+                const isEmptyItem = !productId || productId === '' || productId === 'None';
+                
+                if (isEmptyItem) {
+                    console.log(`Item ${index} está vacío - configurando como nuevo`);
+                    // Es un item vacío por defecto, prepararlo para nuevo producto
+                    setupEmptyItem(item, index);
+                } else {
+                    // Es un item con producto existente
+                    console.log(`Item ${index} tiene producto:`, productId);
+                    updateProductDisplay(item, productId);
+                }
+                
+                setupItemEventListeners(item);
+                updateItemTotal(item);
+            });
+            
+            // Actualizar totales finales
+            updateTotals();
+        } catch (error) {
+            console.error('Error en loadExistingProductData:', error);
+        }
+    }
+    
+    // Configurar item vacío por defecto
+    function setupEmptyItem(item, index) {
+        const productName = item.querySelector('.product-name');
+        const productCode = item.querySelector('.product-code');
+        const quantityInput = item.querySelector('.quantity');
+        const priceInput = item.querySelector('.unit-price');
         
-        // Búsqueda global de productos
+        if (productName) {
+            productName.innerHTML = '<i class="fas fa-box-open me-2 text-muted"></i>Seleccione un producto';
+        }
+        if (productCode) {
+            productCode.textContent = 'Busque y seleccione un producto';
+        }
+        if (quantityInput) {
+            quantityInput.value = '1';
+            quantityInput.name = `form-${index}-quantity`;
+        }
+        if (priceInput) {
+            priceInput.value = '0.00';
+            priceInput.name = `form-${index}-unit_price`;
+        }
+        
+        // Marcar como item vacío
+        item.dataset.isEmpty = 'true';
+    }
+    
+    function updateProductDisplay(item, productId) {
+        const productName = item.querySelector('.product-name');
+        const productCode = item.querySelector('.product-code');
+        const product = products.find(p => p.id == productId);
+        
+        if (product) {
+            if (productName) {
+                productName.innerHTML = `<i class="fas fa-check-circle me-2 text-success"></i>${product.description || 'Producto'}`;
+            }
+            if (productCode) {
+                productCode.textContent = product.product_code ? `Código: ${product.product_code}` : `ID: ${productId}`;
+            }
+        } else {
+            if (productName) {
+                productName.innerHTML = `<i class="fas fa-box me-2 text-muted"></i>Producto ID: ${productId}`;
+            }
+            if (productCode) {
+                productCode.textContent = `ID: ${productId}`;
+            }
+        }
+    }
+    
+    // Configurar event listeners principales
+    function setupEventListeners() {
+        console.log("6. Configurando event listeners...");
+        
+        // Búsqueda de productos
         const searchInput = document.getElementById('global-product-search');
         if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
+            searchInput.addEventListener('input', debounce(function(e) {
                 const searchTerm = e.target.value.toLowerCase();
-                const productItems = document.querySelectorAll('.product-item');
-                
-                productItems.forEach(item => {
+                document.querySelectorAll('.product-item').forEach(item => {
                     const text = item.textContent.toLowerCase();
                     item.style.display = text.includes(searchTerm) ? 'block' : 'none';
                 });
-            });
+            }, 300));
         }
         
-        // Filtrado por categoría
+        // Categorías
         document.querySelectorAll('.category-item').forEach(item => {
-            item.addEventListener('click', (e) => {
+            item.addEventListener('click', function(e) {
                 e.preventDefault();
                 document.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
-                item.classList.add('active');
-                renderProductList(item.dataset.category);
+                this.classList.add('active');
+                renderProductList(this.dataset.category);
             });
         });
         
-        // Botón para añadir producto manualmente
-        document.getElementById('add-item-btn').addEventListener('click', () => {
-            addProductToFormset({
-                id: 'manual-' + Date.now(),
-                product_code: 'MANUAL',
-                description: 'Producto manual - complete los datos',
-                unit_price: 0.00,
-                current_stock: 'N/A'
-            });
-        });
+        // Botones de acción
+        document.getElementById('add-item-btn')?.addEventListener('click', addManualProduct);
+        document.getElementById('clear-cart')?.addEventListener('click', clearCart);
+        document.getElementById('debug-btn')?.addEventListener('click', showDebugInfo);
         
-        // Botón para vaciar el carrito
-        document.getElementById('clear-cart').addEventListener('click', () => {
-            if (confirm('¿Está seguro de que desea vaciar todos los productos?')) {
-                document.querySelectorAll('.formset-item').forEach(item => {
-                    item.remove();
-                });
-                currentFormIndex = 0;
-                totalForms.value = 0;
-                updateTotals();
-            }
-        });
-        
-        // Botón de debug
-        document.getElementById('debug-btn').addEventListener('click', () => {
-            console.log('=== DEBUG INFO ===');
-            console.log('Total forms:', totalForms.value);
-            console.log('Products loaded:', products.length);
-            console.log('All products:', products);
-            
-            document.querySelectorAll('.formset-item').forEach((item, index) => {
-                const productId = item.querySelector('.product-id')?.value;
-                console.log(`Item ${index}:`, productId ? `Product ID: ${productId}` : 'NO PRODUCT SELECTED');
-            });
-        });
-        
-        // Validación del formulario
-        const dispatchForm = document.getElementById('dispatch-form');
-        if (dispatchForm) {
-            dispatchForm.addEventListener('submit', function(e) {
-                console.log("Validando formulario...");
-                
-                let isValid = true;
-                let hasProducts = false;
-                let errorItems = [];
-                
-                document.querySelectorAll('.formset-item').forEach((item, index) => {
-                    if (item.style.display !== 'none') {
-                        const productId = item.querySelector('.product-id')?.value;
-                        if (productId && productId !== '') {
-                            hasProducts = true;
-                            item.classList.remove('border-danger');
-                        } else {
-                            isValid = false;
-                            errorItems.push(index + 1);
-                            item.classList.add('border-danger');
-                        }
-                    }
-                });
-                
-                if (!hasProducts) {
-                    isValid = false;
-                    alert('Debe agregar al menos un producto al despacho.');
+        // Validación del formulario - MEJORADA
+        const form = document.getElementById('dispatch-form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (!validateForm(e)) {
+                    // Prevenir envío si la validación falla
                     e.preventDefault();
-                    return;
+                    return false;
                 }
                 
-                if (!isValid) {
-                    e.preventDefault();
-                    alert(`Por favor, seleccione un producto para los items: ${errorItems.join(', ')}`);
-                } else {
-                    if (!confirm('¿Está seguro de que desea guardar la nota de despacho?')) {
-                        e.preventDefault();
-                    }
+                // Validación adicional: mostrar datos que se enviarán
+                console.log("=== DATOS QUE SE ENVIARÁN ===");
+                const formData = new FormData(this);
+                for (let [key, value] of formData.entries()) {
+                    console.log(key, value);
                 }
+                
+                // Confirmación final
+                if (!confirm('¿Está seguro de que desea guardar la nota de despacho?')) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                return true;
             });
         }
         
-        console.log("Event listeners configurados");
+        console.log("✅ Event listeners configurados");
     }
     
-    // Cargar datos de productos existentes en el formset
-    function loadExistingProductData() {
-        console.log("Cargando datos existentes...");
-        document.querySelectorAll('.formset-item').forEach(item => {
-            const productId = item.querySelector('[name$="-product"]')?.value;
-            if (productId) {
-                const productName = item.querySelector('.product-name');
-                const productCode = item.querySelector('.product-code');
+    function addManualProduct() {
+        addProductToFormset({
+            id: 'manual-' + Date.now(),
+            product_code: 'MANUAL',
+            description: 'Producto manual',
+            unit_price: 0.00,
+            current_stock: 'N/A'
+        });
+    }
+    
+    function clearCart() {
+        if (confirm('¿Vaciar todos los productos?')) {
+            document.querySelectorAll('.formset-item').forEach(item => item.remove());
+            currentFormIndex = 0;
+            if (totalForms) {
+                totalForms.value = 0;
+            }
+            updateTotals();
+        }
+    }
+    
+    // Validación del formulario - FUNCIÓN MEJORADA
+    function validateForm(e) {
+        console.log("=== VALIDANDO FORMULARIO ANTES DE ENVIAR ===");
+        
+        let hasProducts = false;
+        let errorItems = [];
+        let validItems = [];
+        
+        // Validar todos los items
+        document.querySelectorAll('.formset-item').forEach((item, index) => {
+            if (item.style.display !== 'none') {
+                const productId = item.querySelector('.product-id')?.value;
+                const quantity = item.querySelector('.quantity')?.value;
+                const price = item.querySelector('.unit-price')?.value;
                 
-                if (productName) {
-                    productName.innerHTML = `<i class="fas fa-box me-2 text-muted"></i>Cargando...`;
-                }
+                console.log(`Item ${index}:`, { productId, quantity, price });
                 
-                // Buscar en los productos ya cargados primero
-                const existingProduct = products.find(p => p.id == productId);
-                if (existingProduct) {
-                    if (productName) {
-                        productName.innerHTML = `<i class="fas fa-check-circle me-2 text-success"></i>${existingProduct.description || 'Producto'}`;
-                    }
-                    if (productCode) {
-                        productCode.textContent = existingProduct.product_code ? `Código: ${existingProduct.product_code}` : `ID: ${productId}`;
-                    }
+                if (productId && productId !== '' && quantity && price) {
+                    hasProducts = true;
+                    validItems.push({
+                        product: productId,
+                        quantity: quantity,
+                        unit_price: price
+                    });
+                    item.classList.remove('border-danger');
                 } else {
-                    // Si no está en la lista cargada, mostrar solo el ID
-                    if (productName) {
-                        productName.innerHTML = `<i class="fas fa-box me-2 text-muted"></i>Producto ID: ${productId}`;
-                    }
-                    if (productCode) {
-                        productCode.textContent = `ID: ${productId}`;
-                    }
+                    errorItems.push(index + 1);
+                    item.classList.add('border-danger');
+                    
+                    // Debug detallado
+                    console.error(`Item ${index} inválido:`, {
+                        productId: productId || 'FALTANTE',
+                        quantity: quantity || 'FALTANTE', 
+                        price: price || 'FALTANTE'
+                    });
                 }
             }
-            
-            // Configurar event listeners para el item
-            setupItemEventListeners(item);
-            updateItemTotal(item);
         });
         
-        console.log("Datos existentes cargados");
+        // Mostrar información de debug
+        console.log('Items válidos:', validItems);
+        console.log('Items con error:', errorItems);
+        console.log('Tiene productos:', hasProducts);
+        
+        if (!hasProducts) {
+            alert('Debe agregar al menos un producto válido.');
+            return false;
+        }
+        
+        if (errorItems.length > 0) {
+            alert(`Los siguientes items tienen errores: ${errorItems.join(', ')}\n\nPor favor complete todos los campos correctamente.`);
+            return false;
+        }
+        
+        // Todo válido, proceder con envío
+        console.log('✅ Formulario válido, enviando...');
+        return true;
     }
     
-    // Inicializar la aplicación
-    console.log("Iniciando aplicación de despacho...");
+    function showDebugInfo() {
+        console.log('=== DEBUG INFO ===');
+        console.log('Total forms:', totalForms?.value);
+        console.log('Current form index:', currentFormIndex);
+        console.log('Products loaded:', products.length);
+        
+        const formsetItems = document.querySelectorAll('.formset-item');
+        console.log('Formset items:', formsetItems.length);
+        
+        formsetItems.forEach((item, index) => {
+            const productId = item.querySelector('.product-id')?.value;
+            const quantity = item.querySelector('.quantity')?.value;
+            const price = item.querySelector('.unit-price')?.value;
+            console.log(`Item ${index}:`, {
+                productId: productId || 'NO ID',
+                quantity: quantity || 'NO QTY', 
+                price: price || 'NO PRICE',
+                visible: item.style.display !== 'none'
+            });
+        });
+        
+        // Verificar si los elementos de totales existen
+        console.log('Order total element exists:', !!document.getElementById('order-total'));
+        console.log('Total items element exists:', !!document.getElementById('total-items'));
+        console.log('Items count element exists:', !!document.getElementById('items-count'));
+    }
+    
+    // Helper function
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // Función para debuggear el formset completo
+    function debugFormsetBeforeSubmit() {
+        console.log("=== DEBUG FORMSET ANTES DE ENVIAR ===");
+        console.log("TOTAL_FORMS:", totalForms?.value);
+        
+        const formsetData = [];
+        document.querySelectorAll('.formset-item').forEach((item, index) => {
+            if (item.style.display !== 'none') {
+                const data = {
+                    index: index,
+                    product: item.querySelector('.product-id')?.value,
+                    quantity: item.querySelector('.quantity')?.value,
+                    unit_price: item.querySelector('.unit-price')?.value,
+                    id: item.querySelector('[name$="-id"]')?.value,
+                    delete: item.querySelector('[name$="-DELETE"]')?.value
+                };
+                formsetData.push(data);
+                console.log(`Item ${index}:`, data);
+            }
+        });
+        
+        return formsetData;
+    }
+    
+    // Test function para verificar que los clics funcionen
+    function testProductClick() {
+        if (products.length > 0) {
+            console.log('🔧 Test: Simulando clic en primer producto');
+            addProductToFormset(products[0]);
+        } else {
+            console.log('⚠️  No hay productos para probar');
+        }
+    }
+    
+    // Función para inspeccionar un item específico
+    function inspectItem(index = 0) {
+        const items = document.querySelectorAll('.formset-item');
+        if (items.length > index) {
+            const item = items[index];
+            console.log('=== INSPECCIONANDO ITEM ${index} ===');
+            console.log('Elemento:', item);
+            console.log('Dataset:', item.dataset);
+            console.log('Product ID:', item.querySelector('.product-id')?.value);
+            console.log('Quantity:', item.querySelector('.quantity')?.value);
+            console.log('Price:', item.querySelector('.unit-price')?.value);
+            console.log('isEmpty:', item.dataset.isEmpty);
+        } else {
+            console.log('No hay item en el índice', index);
+        }
+    }
+    
+    // Inicializar
+    console.log("🚀 Iniciando aplicación...");
     init();
     
-    // Hacer la función loadProducts disponible globalmente para el botón de reintento
+    // Funciones globales para debugging
     window.loadProducts = loadProducts;
     window.addProductToFormset = addProductToFormset;
+    window.testProductClick = testProductClick;
+    window.showDebugInfo = showDebugInfo;
+    window.debugInfo = showDebugInfo;
+    window.inspectItem = inspectItem;
+    window.debugFormset = debugFormsetBeforeSubmit;
 });
 </script>
 {% endblock %}

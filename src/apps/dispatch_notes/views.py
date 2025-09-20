@@ -40,10 +40,17 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
             context['formset'] = DispatchItemFormSet()
         return context
 
-    def form_valid(self, form):
-        context = self.get_context_data()
-        formset = context['formset']
+    def post(self, request, *args, **kwargs):
+        self.object = None
+        form = self.get_form()
+        formset = DispatchItemFormSet(self.request.POST)
         
+        if form.is_valid() and formset.is_valid():
+            return self.form_valid(form, formset)
+        else:
+            return self.form_invalid(form, formset)
+
+    def form_valid(self, form, formset):
         print("=== DEBUG FORM VALIDATION CREATE ===")
         print(f"Form is valid: {form.is_valid()}")
         print(f"Formset is valid: {formset.is_valid()}")
@@ -59,56 +66,74 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                 if not item_form.is_valid():
                     print(f"Errors: {item_form.errors}")
                     print(f"Non field errors: {item_form.non_field_errors()}")
-                    print(f"Cleaned data: {getattr(item_form, 'cleaned_data', 'Not available')}")
+                    if hasattr(item_form, 'cleaned_data'):
+                        print(f"Cleaned data: {item_form.cleaned_data}")
+                    else:
+                        print("Cleaned data: Not available")
                     
                     # Debug específico de campos
                     for field_name, field in item_form.fields.items():
                         field_value = item_form[field_name].value()
                         print(f"Field {field_name}: {field_value}")
-                        
-                        if field_name == 'product' and not field_value:
-                            print(f"❌ EMPTY PRODUCT FIELD: {field_name}")
         
         # Si el formset no es válido, retornar error
         if not formset.is_valid():
             messages.error(self.request, "Error en los productos. Por favor revisa los datos.")
             return self.form_invalid(form, formset)
         
-        with transaction.atomic():
-            self.object = form.save(commit=False)
-            self.object.created_by = self.request.user
-            self.object.save()
+        try:
+            with transaction.atomic():
+                self.object = form.save(commit=False)
+                self.object.created_by = self.request.user
+                self.object.save()
 
-            items_to_save = formset.save(commit=False)
-            for item in items_to_save:
-                # Asegurarse de que el producto esté establecido
-                if not item.product:
-                    print(f"⚠️  Skipping item without product: {item}")
-                    continue
-                item.dispatch_note = self.object
-                item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
-                item.save()
-            
-            # Guarda los elementos eliminados
-            for obj in formset.deleted_objects:
-                obj.delete()
-            
-            # Recalcular total
-            total = sum(item.subtotal for item in self.object.items.all())
-            self.object.total = total
-            self.object.save()
+                # DEBUG: Mostrar lo que se va a guardar
+                print("=== GUARDANDO ITEMS ===")
+                items_to_save = formset.save(commit=False)
+                print(f"Items to save: {len(items_to_save)}")
+                
+                for i, item in enumerate(items_to_save):
+                    print(f"\n--- Guardando item {i} ---")
+                    print(f"Product: {item.product}")
+                    print(f"Quantity: {item.quantity}")
+                    print(f"Unit price: {item.unit_price}")
+                    
+                    # Asegurarse de que el producto esté establecido
+                    if not item.product:
+                        print(f"⚠️  Skipping item without product: {item}")
+                        continue
+                        
+                    item.dispatch_note = self.object
+                    item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
+                    print(f"Subtotal: {item.subtotal}")
+                    item.save()
+                    print(f"✅ Item guardado con ID: {item.id}")
+                
+                # Guarda los elementos eliminados
+                for obj in formset.deleted_objects:
+                    print(f"🗑️  Eliminando objeto: {obj}")
+                    obj.delete()
+                
+                # Recalcular total
+                total = sum(item.subtotal for item in self.object.items.all())
+                self.object.total = total
+                self.object.save()
+                print(f"💰 Total guardado: {self.object.total}")
+                
+        except Exception as e:
+            print(f"❌ Error durante el guardado: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            messages.error(self.request, f"Error al guardar: {str(e)}")
+            return self.form_invalid(form, formset)
         
         messages.success(self.request, f"Nota de Despacho N°{self.object.dispatch_number} creada exitosamente.")
         return redirect(self.get_success_url())
     
-    def form_invalid(self, form, formset=None):
+    def form_invalid(self, form, formset):
         print("=== FORM INVALID ===")
         print(f"Form errors: {form.errors}")
-        if formset:
-            print(f"Formset errors: {formset.errors}")
-            for i, item_form in enumerate(formset):
-                if not item_form.is_valid():
-                    print(f"Form {i} errors: {item_form.errors}")
+        print(f"Formset errors: {formset.errors}")
         context = self.get_context_data(form=form, formset=formset)
         return self.render_to_response(context)
 
@@ -284,9 +309,10 @@ def product_search_api(request):
             # VERIFICAR SI ES UN NÚMERO VÁLIDO
             try:
                 product_id_int = int(product_id)
-                products = Product.objects.filter(pk=product_id_int)
+                product = Product.objects.filter(pk=product_id_int).first()
                 products_data = []
-                for product in products:
+                
+                if product:
                     product_data = {
                         'id': product.id,
                         'product_code': getattr(product, 'product_code', ''),

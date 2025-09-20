@@ -68,13 +68,17 @@ class DispatchItemForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Hacer que los campos sean requeridos
+        self.fields['product'].required = True
+        self.fields['quantity'].required = True
+        self.fields['unit_price'].required = True
         
         # Si el formulario ya tiene una instancia, cargamos el valor del campo de búsqueda
         if self.instance and self.instance.pk and self.instance.product:
             self.fields['product_search'].initial = self.instance.product.product_code
             self.fields['product_description'].initial = self.instance.product.description
     
-    def clean(self):
+        def clean(self):
         cleaned_data = super().clean()
         product = cleaned_data.get('product')
         product_search = cleaned_data.get('product_search')
@@ -83,27 +87,8 @@ class DispatchItemForm(forms.ModelForm):
         print(f"Product: {product}")
         print(f"Product search: {product_search}")
         
-        # Si no hay producto seleccionado pero hay búsqueda, intentar encontrar el producto
-        if not product and product_search:
-            try:
-                # Buscar por código de producto
-                product_obj = Product.objects.get(product_code=product_search)
-                cleaned_data['product'] = product_obj
-                self.instance.product = product_obj
-                print(f"Found product by code: {product_obj}")
-            except Product.DoesNotExist:
-                # Si no se encuentra por código, buscar por descripción
-                try:
-                    product_obj = Product.objects.get(description__icontains=product_search)
-                    cleaned_data['product'] = product_obj
-                    self.instance.product = product_obj
-                    print(f"Found product by description: {product_obj}")
-                except (Product.DoesNotExist, Product.MultipleObjectsReturned):
-                    self.add_error('product_search', 'No se pudo encontrar el producto')
-                    print(f"Product not found: {product_search}")
-        
         # Validar que el producto sea requerido
-        if not cleaned_data.get('product'):
+        if not product:
             self.add_error('product', 'Este campo es requerido')
             self.add_error('product_search', 'Debe seleccionar un producto')
             print("❌ Product field is required")
@@ -128,6 +113,7 @@ DispatchItemFormSet = inlineformset_factory(
     form=DispatchItemForm,
     extra=1,
     can_delete=True,
+   # fields=['product', 'quantity', 'unit_price', 'brand', 'model', 'product_search', 'product_description']
     max_num=500,
     validate_max=False,  # No validar máximo si hay forms vacíos
     exclude=[]  # Asegurar que no excluya campos necesarios
