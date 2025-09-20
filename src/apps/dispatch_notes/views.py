@@ -34,7 +34,9 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        if 'formset' not in context:
+        if self.request.POST:
+            context['formset'] = DispatchItemFormSet(self.request.POST)
+        else:
             context['formset'] = DispatchItemFormSet()
         return context
 
@@ -67,32 +69,34 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                         if field_name == 'product' and not field_value:
                             print(f"❌ EMPTY PRODUCT FIELD: {field_name}")
         
+        # Si el formset no es válido, retornar error
+        if not formset.is_valid():
+            messages.error(self.request, "Error en los productos. Por favor revisa los datos.")
+            return self.form_invalid(form, formset)
+        
         with transaction.atomic():
             self.object = form.save(commit=False)
             self.object.created_by = self.request.user
             self.object.save()
 
-            if formset.is_valid():
-                formset.instance = self.object
-                items_to_save = formset.save(commit=False)
-                for item in items_to_save:
-                    # Asegurarse de que el producto esté establecido
-                    if not item.product:
-                        print(f"⚠️  Skipping item without product: {item}")
-                        continue
-                    item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
-                    item.save()
-                
-                # Guarda los elementos eliminados
-                for obj in formset.deleted_objects:
-                    obj.delete()
-                
-                total = sum(item.subtotal for item in self.object.items.all())
-                self.object.total = total
-                self.object.save()
-            else:
-                messages.error(self.request, "Hubo un error con los productos. Por favor, revisa los datos ingresados.")
-                return self.form_invalid(form, formset)
+            items_to_save = formset.save(commit=False)
+            for item in items_to_save:
+                # Asegurarse de que el producto esté establecido
+                if not item.product:
+                    print(f"⚠️  Skipping item without product: {item}")
+                    continue
+                item.dispatch_note = self.object
+                item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
+                item.save()
+            
+            # Guarda los elementos eliminados
+            for obj in formset.deleted_objects:
+                obj.delete()
+            
+            # Recalcular total
+            total = sum(item.subtotal for item in self.object.items.all())
+            self.object.total = total
+            self.object.save()
         
         messages.success(self.request, f"Nota de Despacho N°{self.object.dispatch_number} creada exitosamente.")
         return redirect(self.get_success_url())
@@ -150,46 +154,22 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
                 if not item_form.is_valid():
                     print(f"Form {i} errors:", item_form.errors)
         
+        # Si el formset no es válido, retornar error
+        if not formset.is_valid():
+            messages.error(self.request, "Error en los productos. Por favor revisa los datos.")
+            return self.form_invalid(form, formset)
+        
         with transaction.atomic():
             self.object = form.save()
-            original_items = {item.pk: item for item in self.object.items.all()}
-            updated_items = formset.save(commit=False)
+            items_to_save = formset.save(commit=False)
             
-            for item in updated_items:
-                if item.pk:  # Item existente
-                    original_item = original_items.get(item.pk)
-                    if original_item:
-                        # Si cambió el producto o la cantidad
-                        if original_item.product != item.product:
-                            # COMENTA TEMPORALMENTE STOCK
-                            # Product.objects.filter(pk=original_item.product.pk).update(
-                            #     current_stock=F('current_stock') + original_item.quantity
-                            # )
-                            # Product.objects.filter(pk=item.product.pk).update(
-                            #     current_stock=F('current_stock') - item.quantity
-                            # )
-                            pass
-                        elif original_item.quantity != item.quantity:
-                            # COMENTA TEMPORALMENTE STOCK
-                            # difference = original_item.quantity - item.quantity
-                            # Product.objects.filter(pk=item.product.pk).update(
-                            #     current_stock=F('current_stock') + difference
-                            # )
-                            pass
-                else:  # Nuevo item
-                    # COMENTA TEMPORALMENTE STOCK
-                    # Product.objects.filter(pk=item.product.pk).update(
-                    #     current_stock=F('current_stock') - item.quantity
-                    # )
-                    pass
+            for item in items_to_save:
+                item.dispatch_note = self.object
+                item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
                 item.save()
             
             # Manejar items eliminados
             for item in formset.deleted_objects:
-                # COMENTA TEMPORALMENTE STOCK
-                # Product.objects.filter(pk=item.product.pk).update(
-                #     current_stock=F('current_stock') + item.quantity
-                # )
                 item.delete()
             
             # Recalcular total
@@ -238,7 +218,7 @@ class DispatchNotePrintView(LoginRequiredMixin, DetailView):
         
         return response
     
-# NUEVA VISTA
+# Vista para confirmar despacho
 def dispatch_note_confirm(request, pk):
     dispatch_note = get_object_or_404(DispatchNote, pk=pk)
     
@@ -265,100 +245,132 @@ def dispatch_note_confirm(request, pk):
     
     return redirect('dispatch_notes:detail', pk=pk)
     
+# API para búsqueda de productos - VERSIÓN CORREGIDA
 def product_search_api(request):
     try:
         product_id = request.GET.get('id')
         query = request.GET.get('q', '')
+        all_products = request.GET.get('all')
         
-        print(f"DEBUG API: id={product_id}, q={query}")
+        print(f"DEBUG API: id={product_id}, q={query}, all={all_products}")
         
-        if product_id:
+        if all_products:
+            # Devolver todos los productos para la interfaz tipo Odoo
+            products = Product.objects.all()[:50]  # Limitar a 50 para no sobrecargar
+            products_data = []
+            for product in products:
+                product_data = {
+                    'id': product.id,
+                    'product_code': getattr(product, 'product_code', ''),
+                    'description': getattr(product, 'description', ''),
+                    'unit_price': float(product.unit_price) if hasattr(product, 'unit_price') and product.unit_price else 0.0,
+                    'current_stock': getattr(product, 'current_stock', 0)
+                }
+                
+                # Campos opcionales - solo incluir si existen en el modelo
+                if hasattr(product, 'brand'):
+                    product_data['brand'] = product.brand
+                if hasattr(product, 'model'):
+                    product_data['model'] = product.model
+                if hasattr(product, 'category'):
+                    product_data['category'] = str(product.category) if product.category else ''
+                
+                products_data.append(product_data)
+                
+            print(f"DEBUG API: Returning {len(products_data)} products for all=true")
+            return JsonResponse(products_data, safe=False)
+        
+        elif product_id:
             # VERIFICAR SI ES UN NÚMERO VÁLIDO
             try:
                 product_id_int = int(product_id)
-                products = Product.objects.filter(pk=product_id_int).values(
-                    'id', 'product_code', 'description', 'unit_price', 'current_stock'
-                )
-                print(f"Search by ID {product_id_int}: Found {products.count()} products")
+                products = Product.objects.filter(pk=product_id_int)
+                products_data = []
+                for product in products:
+                    product_data = {
+                        'id': product.id,
+                        'product_code': getattr(product, 'product_code', ''),
+                        'description': getattr(product, 'description', ''),
+                        'unit_price': float(product.unit_price) if hasattr(product, 'unit_price') and product.unit_price else 0.0,
+                        'current_stock': getattr(product, 'current_stock', 0)
+                    }
+                    
+                    # Campos opcionales
+                    if hasattr(product, 'brand'):
+                        product_data['brand'] = product.brand
+                    if hasattr(product, 'model'):
+                        product_data['model'] = product.model
+                    if hasattr(product, 'category'):
+                        product_data['category'] = str(product.category) if product.category else ''
+                    
+                    products_data.append(product_data)
+                    
+                print(f"Search by ID {product_id_int}: Found {len(products_data)} products")
+                return JsonResponse(products_data, safe=False)
             except (ValueError, TypeError):
                 # Si no es un número, buscar por código de producto
                 print(f"Search by code/description: {product_id}")
                 products = Product.objects.filter(
                     Q(product_code__iexact=product_id) | Q(description__icontains=product_id)
-                ).values('id', 'product_code', 'description', 'unit_price', 'current_stock')[:1]
+                )[:1]
+                products_data = []
+                for product in products:
+                    product_data = {
+                        'id': product.id,
+                        'product_code': getattr(product, 'product_code', ''),
+                        'description': getattr(product, 'description', ''),
+                        'unit_price': float(product.unit_price) if hasattr(product, 'unit_price') and product.unit_price else 0.0,
+                        'current_stock': getattr(product, 'current_stock', 0)
+                    }
+                    
+                    # Campos opcionales
+                    if hasattr(product, 'brand'):
+                        product_data['brand'] = product.brand
+                    if hasattr(product, 'model'):
+                        product_data['model'] = product.model
+                    if hasattr(product, 'category'):
+                        product_data['category'] = str(product.category) if product.category else ''
+                    
+                    products_data.append(product_data)
+                    
+                return JsonResponse(products_data, safe=False)
         
         elif query:
             # Búsqueda por texto
             print(f"Search by query: {query}")
             products = Product.objects.filter(
                 Q(product_code__icontains=query) | Q(description__icontains=query)
-            ).values('id', 'product_code', 'description', 'unit_price', 'current_stock')[:10]
-            print(f"Found {products.count()} products for query: {query}")
+            )[:10]
+            products_data = []
+            for product in products:
+                product_data = {
+                    'id': product.id,
+                    'product_code': getattr(product, 'product_code', ''),
+                    'description': getattr(product, 'description', ''),
+                    'unit_price': float(product.unit_price) if hasattr(product, 'unit_price') and product.unit_price else 0.0,
+                    'current_stock': getattr(product, 'current_stock', 0)
+                }
+                
+                # Campos opcionales
+                if hasattr(product, 'brand'):
+                    product_data['brand'] = product.brand
+                if hasattr(product, 'model'):
+                    product_data['model'] = product.model
+                if hasattr(product, 'category'):
+                    product_data['category'] = str(product.category) if product.category else ''
+                
+                products_data.append(product_data)
+                
+            print(f"Found {len(products_data)} products for query: {query}")
+            return JsonResponse(products_data, safe=False)
+        
         else:
-            products = Product.objects.none()
+            products_data = []
             print("No search criteria provided")
-        
-        products_list = list(products)
-        print(f"DEBUG API: Returning {len(products_list)} products")
-        
-        # Debug: mostrar qué productos se están devolviendo
-        for product in products_list:
-            print(f"  - {product['id']}: {product['product_code']} - {product['description']}")
+            return JsonResponse(products_data, safe=False)
             
-        return JsonResponse(products_list, safe=False)
-        
     except Exception as e:
         print(f"ERROR in product_search_api: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
-def form_valid(self, form):
-    context = self.get_context_data()
-    formset = context['formset']
-    
-    print("=== DEBUG FORM VALIDATION CREATE ===")
-    print(f"Form is valid: {form.is_valid()}")
-    print(f"Formset is valid: {formset.is_valid()}")
-    
-    if not formset.is_valid():
-        print("Formset errors:", formset.errors)
-        print("Formset non-form errors:", formset.non_form_errors())
-        
-        # DEBUG DETALLADO DE CADA FORMULARIO
-        for i, item_form in enumerate(formset):
-            print(f"\n--- Form {i} ---")
-            print(f"Is valid: {item_form.is_valid()}")
-            print(f"Errors: {item_form.errors}")
-            print(f"Non field errors: {item_form.non_field_errors()}")
-            print(f"Data: {item_form.data}")
-            print(f"Cleaned data: {getattr(item_form, 'cleaned_data', 'Not available')}")
-            
-            # Verificar campos específicos
-            if 'product' in item_form.fields:
-                print(f"Product field value: {item_form['product'].value()}")
-            if 'quantity' in item_form.fields:
-                print(f"Quantity field value: {item_form['quantity'].value()}")
-                
-def form_valid(self, form, formset):
-    print("=== DEBUG FORM VALIDATION UPDATE ===")
-    print(f"Form is valid: {form.is_valid()}")
-    print(f"Formset is valid: {formset.is_valid()}")
-    
-    if not form.is_valid():
-        print("Form errors:", form.errors)
-        
-    if not formset.is_valid():
-        print("Formset errors:", formset.errors)
-        print("Formset non-form errors:", formset.non_form_errors())
-        for i, item_form in enumerate(formset):
-            print(f"\n--- Form {i} ---")
-            print(f"Is valid: {item_form.is_valid()}")
-            if not item_form.is_valid():
-                print(f"Errors: {item_form.errors}")
-                print(f"Cleaned data: {getattr(item_form, 'cleaned_data', 'Not available')}")
-                # Debug específico del campo product
-                if 'product' in item_form.errors:
-                    print(f"Product field value: {item_form['product'].value()}")
-                    print(f"Product search value: {item_form['product_search'].value() if 'product_search' in item_form.fields else 'N/A'}")
-                
