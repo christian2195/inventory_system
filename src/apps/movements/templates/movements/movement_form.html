@@ -1,32 +1,324 @@
 {% extends "base.html" %}
+{% load crispy_forms_tags %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Crear Nuevo Movimiento</h2>
-    <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-            <label for="{{ form.product.id_for_label }}" class="form-label">Producto</label>
-            {{ form.product }}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-plus-circle me-2"></i>Registrar Movimiento</h2>
+            <p class="text-muted mb-0">Registrar entrada o salida de inventario</p>
         </div>
-        <div class="mb-3">
-            <label for="{{ form.movement_type.id_for_label }}" class="form-label">Tipo de Movimiento</label>
-            {{ form.movement_type }}
+        <a href="{% url 'movements:list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Volver
+        </a>
+    </div>
+
+    <!-- Formulario -->
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Información del Movimiento</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Mensajes de error -->
+                    {% if messages %}
+                    <div class="mb-4">
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                            <i class="fas fa-{% if message.tags == 'success' %}check-circle{% else %}exclamation-triangle{% endif %} me-2"></i>
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Errores del formulario -->
+                    {% if form.errors %}
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Errores en el formulario:</strong>
+                        <ul class="mb-0 mt-2">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endif %}
+                    
+                    <form method="post" id="movement-form" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.product|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.movement_type|as_crispy_field }}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                {{ form.quantity|as_crispy_field }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ form.unit_price|as_crispy_field }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Valor Total</label>
+                                <div class="form-control" id="total-value" style="background-color: #f8f9fa;">
+                                    $0.00
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                {{ form.observations|as_crispy_field }}
+                            </div>
+                        </div>
+
+                        <!-- Información del Producto -->
+                        <div class="card mt-4" id="product-info" style="display: none;">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Información del Producto</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <strong>Stock Actual:</strong>
+                                        <span id="current-stock">0</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Stock Mínimo:</strong>
+                                        <span id="min-stock">0</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Límite Mínimo:</strong>
+                                        <span id="min-limit">0</span>
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning mt-2" id="stock-warning" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    <span id="warning-message"></span>
+                                </div>
+                                <div class="alert alert-danger mt-2" id="stock-error" style="display: none;">
+                                    <i class="fas fa-ban me-1"></i>
+                                    <span id="error-message"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary" id="submit-btn">
+                                <i class="fas fa-save me-1"></i> Guardar Movimiento
+                            </button>
+                            <a href="{% url 'movements:list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="{{ form.quantity.id_for_label }}" class="form-label">Cantidad</label>
-            {{ form.quantity }}
-        </div>
-        <div class="mb-3">
-            <label for="{{ form.unit_price.id_for_label }}" class="form-label">Precio Unitario</label>
-            {{ form.unit_price }}
-        </div>
-        <div class="mb-3">
-            <label for="{{ form.observations.id_for_label }}" class="form-label">Observaciones</label>
-            {{ form.observations }}
-        </div>
-        <button type="submit" class="btn btn-primary">Guardar</button>
-        <a href="{% url 'movements:list' %}" class="btn btn-secondary">Cancelar</a>
-    </form>
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productSelect = document.querySelector('#{{ form.product.id_for_label }}');
+    const quantityInput = document.querySelector('#{{ form.quantity.id_for_label }}');
+    const unitPriceInput = document.querySelector('#{{ form.unit_price.id_for_label }}');
+    const movementTypeSelect = document.querySelector('#{{ form.movement_type.id_for_label }}');
+    const totalValueElement = document.querySelector('#total-value');
+    const productInfo = document.querySelector('#product-info');
+    const currentStockElement = document.querySelector('#current-stock');
+    const minStockElement = document.querySelector('#min-stock');
+    const minLimitElement = document.querySelector('#min-limit');
+    const stockWarning = document.querySelector('#stock-warning');
+    const warningMessage = document.querySelector('#warning-message');
+    const stockError = document.querySelector('#stock-error');
+    const errorMessage = document.querySelector('#error-message');
+    const submitBtn = document.querySelector('#submit-btn');
+    const movementForm = document.querySelector('#movement-form');
+    
+    let formSubmitted = false;
+
+    // Función para calcular el valor total
+    function calculateTotal() {
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const unitPrice = parseFloat(unitPriceInput.value) || 0;
+        
+        if (quantity < 0 || unitPrice < 0) {
+            totalValueElement.textContent = 'Error: Valores negativos';
+            totalValueElement.style.color = '#dc3545';
+            return;
+        }
+        
+        const total = quantity * unitPrice;
+        totalValueElement.textContent = '$' + total.toLocaleString('es-VE', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        totalValueElement.style.color = '#0d6efd';
+    }
+
+   // Función para cargar información del producto
+function loadProductInfo(productId) {
+    if (!productId) {
+        productInfo.style.display = 'none';
+        return;
+    }
+
+    // Usar la API correcta
+    fetch(`{% url 'movements:product_info_api' 0 %}`.replace('0', productId))
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta de la API');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                currentStockElement.textContent = data.current_stock;
+                minStockElement.textContent = data.min_stock;
+                productLocationElement.textContent = data.location;
+                productInfo.style.display = 'block';
+                validateMovement(data.current_stock, data.min_stock);
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading product info:', error);
+            productInfo.style.display = 'none';
+            showError('No se pudo cargar la información del producto.');
+        });
+}
+
+    // Función para validar movimientos
+    function validateMovement(currentStock, minStock) {
+        const quantity = parseFloat(quantityInput.value) || 0;
+        
+        stockWarning.style.display = 'none';
+        stockError.style.display = 'none';
+        submitBtn.disabled = false;
+        
+        if (movementTypeSelect.value === 'OUT') {
+            if (quantity > currentStock) {
+                errorMessage.textContent = `Stock insuficiente. Máximo disponible: ${currentStock}`;
+                stockError.style.display = 'block';
+                submitBtn.disabled = true;
+                return false;
+            }
+            
+            if (currentStock - quantity < minStock) {
+                warningMessage.textContent = `Alerta: Stock quedará bajo mínimo (${minStock})`;
+                stockWarning.style.display = 'block';
+                return true;
+            }
+        }
+        
+        return true;
+    }
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        stockError.style.display = 'block';
+        submitBtn.disabled = true;
+    }
+
+    // Prevenir doble envío y validar
+    movementForm.addEventListener('submit', function(e) {
+        if (!productSelect.value || !quantityInput.value || !unitPriceInput.value) {
+            e.preventDefault();
+            alert('Complete todos los campos requeridos.');
+            return;
+        }
+        
+        const quantity = parseFloat(quantityInput.value);
+        const unitPrice = parseFloat(unitPriceInput.value);
+        
+        if (quantity <= 0) {
+            e.preventDefault();
+            alert('La cantidad debe ser mayor a cero.');
+            return;
+        }
+        
+        if (unitPrice < 0) {
+            e.preventDefault();
+            alert('El precio unitario no puede ser negativo.');
+            return;
+        }
+        
+        if (movementTypeSelect.value === 'OUT') {
+            const currentStock = parseInt(currentStockElement.textContent) || 0;
+            if (quantity > currentStock) {
+                e.preventDefault();
+                alert(`ERROR: Stock insuficiente. Disponible: ${currentStock}`);
+                return;
+            }
+        }
+        
+        if (formSubmitted) {
+            e.preventDefault();
+            alert('El formulario ya está siendo procesado.');
+            return;
+        }
+        
+        formSubmitted = true;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    });
+
+    // Event listeners
+    quantityInput.addEventListener('input', calculateTotal);
+    unitPriceInput.addEventListener('input', calculateTotal);
+    productSelect.addEventListener('change', function() {
+        calculateTotal();
+        loadProductInfo(this.value);
+    });
+    movementTypeSelect.addEventListener('change', function() {
+        calculateTotal();
+        if (productSelect.value) loadProductInfo(productSelect.value);
+    });
+
+    // Inicializar
+    calculateTotal();
+    if (productSelect.value) loadProductInfo(productSelect.value);
+});
+</script>
+
+<style>
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: 1px solid rgba(0, 0, 0, 0.125);
+    }
+    #total-value {
+        font-weight: bold;
+        color: #0d6efd;
+        text-align: center;
+        padding: 0.75rem;
+    }
+    .alert {
+        border: none;
+        border-left: 4px solid;
+    }
+    .alert-warning {
+        border-left-color: #ffc107;
+    }
+    .alert-danger {
+        border-left-color: #dc3545;
+    }
+    #submit-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+</style>
 {% endblock %}

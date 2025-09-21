@@ -1,33 +1,80 @@
-# src/apps/movements/views.py
-from django.views.generic import ListView, CreateView, TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
+# apps/movements/views.py
+from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
-from django.utils import timezone
-from datetime import timedelta
-from .models import Movement, Entry  # Importaciones correctas
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.db.models import Sum, Q
+from django.http import JsonResponse
+
+# Solo importa Movement
+from .models import Movement
 from .forms import MovementForm
-from apps.inventory.models import Product
 
 class MovementListView(LoginRequiredMixin, ListView):
     model = Movement
     template_name = 'movements/movement_list.html'
     context_object_name = 'movements'
-    paginate_by = 25
+    paginate_by = 20
     
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('product', 'product__supplier')
-        movement_type = self.request.GET.get('type')
+        queryset = Movement.objects.select_related('product', 'created_by').order_by('-date')
         
-        if movement_type == 'entrada':
-            queryset = queryset.filter(movement_type='IN')
-        elif movement_type == 'salida':
-            queryset = queryset.filter(movement_type='OUT')
+        # Filtros
+        movement_type = self.request.GET.get('type')
+        if movement_type:
+            queryset = queryset.filter(movement_type=movement_type)
             
-        return queryset.order_by('-date')
+        search_query = self.request.GET.get('q')
+        if search_query:
+            queryset = queryset.filter(
+                Q(product__description__icontains=search_query) |
+                Q(observations__icontains=search_query) |
+                Q(delivered_to__icontains=search_query)
+            )
+            
+        # Filtro por fecha
+        start_date = self.request.GET.get('start_date')
+        end_date = self.request.GET.get('end_date')
+        if start_date:
+            queryset = queryset.filter(date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(date__lte=end_date)
+            
+        return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['movement_type'] = self.request.GET.get('type', '')
+        queryset = self.get_queryset()
+        
+        # Estadísticas para el template
+        context['total_movements'] = queryset.count()
+        context['entries_count'] = queryset.filter(movement_type='IN').count()
+        context['exits_count'] = queryset.filter(movement_type='OUT').count()
+        
+        # Calcular valores totales
+        total_entries = queryset.filter(movement_type='IN').aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+        
+        total_exits = queryset.filter(movement_type='OUT').aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+        
+        total_value = sum(movement.quantity * movement.unit_price for movement in queryset)
+        
+        context['total_quantity'] = total_entries + total_exits
+        context['total_value'] = total_value
+        
+        # Pasar parámetros de filtro al template
+        context['current_filters'] = {
+            'type': self.request.GET.get('type', ''),
+            'q': self.request.GET.get('q', ''),
+            'start_date': self.request.GET.get('start_date', ''),
+            'end_date': self.request.GET.get('end_date', ''),
+        }
+        
         return context
 
 class MovementCreateView(LoginRequiredMixin, CreateView):
@@ -35,49 +82,157 @@ class MovementCreateView(LoginRequiredMixin, CreateView):
     form_class = MovementForm
     template_name = 'movements/movement_form.html'
     success_url = reverse_lazy('movements:list')
-
+    
     def get_initial(self):
+        """Pre-seleccionar tipo de movimiento si viene por URL"""
         initial = super().get_initial()
-        # Lógica de get_initial si es necesaria
+        movement_type = self.request.GET.get('type')
+        if movement_type in ['IN', 'OUT']:
+            initial['movement_type'] = movement_type
         return initial
     
     def form_valid(self, form):
-        form.instance.created_by = self.request.user
-        movement = form.save()
-        
-        product = movement.product
-        # Asegúrate de que este campo exista en tu modelo de Producto
-        # product.last_price = movement.unit_price
-        product.save()
-        
-        return super().form_valid(form)
+        try:
+            # Asignar el usuario actual
+            form.instance.created_by = self.request.user
+            result = super().form_valid(form)
+            messages.success(self.request, "Movimiento registrado correctamente.")
+            return result
+        except ValidationError as e:
+            # Mostrar error de validación
+            form.add_error(None, e)
+            return self.form_invalid(form)
+        except Exception as e:
+            # Mostrar error general
+            messages.error(self.request, f"Error al guardar el movimiento: {str(e)}")
+            return self.form_invalid(form)
+    
+    def form_invalid(self, form):
+        messages.error(self.request, "Por favor, corrija los errores en el formulario.")
+        return super().form_invalid(form)
 
-class EntryListView(ListView):
-    model = Entry
+class MovementUpdateView(LoginRequiredMixin, UpdateView):
+    model = Movement
+    form_class = MovementForm
+    template_name = 'movements/movement_form.html'
+    success_url = reverse_lazy('movements:list')
+    
+    def form_valid(self, form):
+        try:
+            result = super().form_valid(form)
+            messages.success(self.request, "Movimiento actualizado correctamente.")
+            return result
+        except ValidationError as e:
+            form.add_error(None, e)
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f"Error al actualizar el movimiento: {str(e)}")
+            return self.form_invalid(form)
+
+class MovementDeleteView(LoginRequiredMixin, DeleteView):
+    model = Movement
+    template_name = 'movements/movement_confirm_delete.html'
+    success_url = reverse_lazy('movements:list')
+    
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Movimiento eliminado correctamente.")
+        return super().delete(request, *args, **kwargs)
+
+# Vistas específicas para entradas y salidas
+class EntryListView(LoginRequiredMixin, ListView):
+    """Vista para listar solo entradas"""
+    model = Movement
     template_name = 'movements/entry_list.html'
     context_object_name = 'entries'
-
-class ExitListView(ListView):
-    model = Movement
-    template_name = 'movements/exit_list.html'
-    context_object_name = 'exits'
+    paginate_by = 20
     
     def get_queryset(self):
-        return super().get_queryset().filter(movement_type='OUT').order_by('-date')
-
-class MonthlyReportView(LoginRequiredMixin, TemplateView):
-    template_name = 'movements/monthly_report.html'
+        queryset = Movement.objects.filter(movement_type='IN')\
+            .select_related('product', 'created_by')\
+            .order_by('-date')
+            
+        # Filtros
+        search_query = self.request.GET.get('q')
+        if search_query:
+            queryset = queryset.filter(
+                Q(product__description__icontains=search_query) |
+                Q(observations__icontains=search_query)
+            )
+            
+        return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        end_date = timezone.now()
-        start_date = end_date - timedelta(days=30)
-        movements = Movement.objects.filter(
-            date__range=(start_date, end_date)
-        ).select_related('product')
+        entries = self.get_queryset()
         
-        context['movements'] = movements
-        context['start_date'] = start_date
-        context['end_date'] = end_date
+        # Calcular totales
+        total_quantity = entries.aggregate(total=Sum('quantity'))['total'] or 0
+        total_value = sum(entry.quantity * entry.unit_price for entry in entries)
+        
+        context['total_quantity'] = total_quantity
+        context['total_value'] = total_value
+        context['search_query'] = self.request.GET.get('q', '')
         
         return context
+
+class ExitListView(LoginRequiredMixin, ListView):
+    """Vista para listar solo salidas"""
+    model = Movement
+    template_name = 'movements/exit_list.html'
+    context_object_name = 'exits'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        queryset = Movement.objects.filter(movement_type='OUT')\
+            .select_related('product', 'created_by')\
+            .order_by('-date')
+            
+        # Filtros
+        search_query = self.request.GET.get('q')
+        if search_query:
+            queryset = queryset.filter(
+                Q(product__description__icontains=search_query) |
+                Q(observations__icontains=search_query) |
+                Q(delivered_to__icontains=search_query)
+            )
+            
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        exits = self.get_queryset()
+        
+        # Calcular totales
+        total_quantity = exits.aggregate(total=Sum('quantity'))['total'] or 0
+        total_value = sum(exit.quantity * exit.unit_price for exit in exits)
+        
+        context['total_quantity'] = total_quantity
+        context['total_value'] = total_value
+        context['search_query'] = self.request.GET.get('q', '')
+        
+        return context
+
+# Vista para API de información de producto
+def product_info_api(request, product_id):
+    """API para obtener información del producto"""
+    try:
+        from apps.inventory.models import Product
+        product = Product.objects.get(pk=product_id)
+        
+        return JsonResponse({
+            'success': True,
+            'current_stock': product.current_stock,
+            'min_stock': product.min_stock,
+            'location': product.location or '',
+            'description': product.description
+        })
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Producto no encontrado'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

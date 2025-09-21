@@ -966,6 +966,40 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTotals();
     }
     
+// Validación adicional para el formulario
+document.querySelector('#movement-form').addEventListener('submit', function(e) {
+    // Validar que los campos requeridos estén completos
+    if (!productSelect.value || !quantityInput.value || !unitPriceInput.value) {
+        e.preventDefault();
+        alert('Por favor, complete todos los campos requeridos.');
+        return;
+    }
+    
+    // Validación de cantidad
+    const quantity = parseFloat(quantityInput.value);
+    if (quantity <= 0) {
+        e.preventDefault();
+        alert('La cantidad debe ser mayor a cero.');
+        return;
+    }
+    
+  // Validación adicional para el formulario
+document.querySelector('#movement-form').addEventListener('submit', function(e) {
+    // Validar que los campos requeridos estén completos
+    if (!productSelect.value || !quantityInput.value || !unitPriceInput.value) {
+        e.preventDefault();
+        alert('Por favor, complete todos los campos requeridos.');
+        return;
+    }
+    
+    // Validación de cantidad
+    const quantity = parseFloat(quantityInput.value);
+    if (quantity <= 0) {
+        e.preventDefault();
+        alert('La cantidad debe ser mayor a cero.');
+        return;
+    
+});
     // Actualizar el resumen
     function updateSummary() {
         const fieldsToUpdate = [

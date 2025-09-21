@@ -78,7 +78,7 @@ class DispatchItemForm(forms.ModelForm):
             self.fields['product_search'].initial = self.instance.product.product_code
             self.fields['product_description'].initial = self.instance.product.description
     
-        def clean(self):
+    def clean(self):  # FIXED: This method should be at the same level as __init__
         cleaned_data = super().clean()
         product = cleaned_data.get('product')
         product_search = cleaned_data.get('product_search')

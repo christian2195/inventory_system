@@ -1,6 +1,6 @@
 # src/apps/movements/admin.py
 from django.contrib import admin
-from .models import Movement, Entry  # Importa los modelos
+from .models import Movement  # Importa los modelos
 
 # Crea una clase de Admin para personalizar la visualización en el panel
 class MovementAdmin(admin.ModelAdmin):
@@ -16,4 +16,4 @@ class EntryAdmin(admin.ModelAdmin):
 
 # Registra los modelos con sus clases de Admin correspondientes
 admin.site.register(Movement, MovementAdmin)
-admin.site.register(Entry, EntryAdmin)
+#admin.site.register(Entry, EntryAdmin)
