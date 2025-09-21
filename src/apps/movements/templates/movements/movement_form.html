@@ -43,7 +43,7 @@
                         <ul class="mb-0 mt-2">
                             {% for field, errors in form.errors.items %}
                                 {% for error in errors %}
-                                    <li>{{ error }}</li>
+                                    <li>{% if field != '__all__' %}<strong>{{ field }}:</strong> {% endif %}{{ error }}</li>
                                 {% endfor %}
                             {% endfor %}
                         </ul>
@@ -100,8 +100,8 @@
                                         <span id="min-stock">0</span>
                                     </div>
                                     <div class="col-md-4">
-                                        <strong>Límite Mínimo:</strong>
-                                        <span id="min-limit">0</span>
+                                        <strong>Ubicación:</strong>
+                                        <span id="product-location">-</span>
                                     </div>
                                 </div>
                                 <div class="alert alert-warning mt-2" id="stock-warning" style="display: none;">
@@ -132,15 +132,15 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const productSelect = document.querySelector('#{{ form.product.id_for_label }}');
-    const quantityInput = document.querySelector('#{{ form.quantity.id_for_label }}');
-    const unitPriceInput = document.querySelector('#{{ form.unit_price.id_for_label }}');
-    const movementTypeSelect = document.querySelector('#{{ form.movement_type.id_for_label }}');
+    const productSelect = document.querySelector('#id_product');
+    const quantityInput = document.querySelector('#id_quantity');
+    const unitPriceInput = document.querySelector('#id_unit_price');
+    const movementTypeSelect = document.querySelector('#id_movement_type');
     const totalValueElement = document.querySelector('#total-value');
     const productInfo = document.querySelector('#product-info');
     const currentStockElement = document.querySelector('#current-stock');
     const minStockElement = document.querySelector('#min-stock');
-    const minLimitElement = document.querySelector('#min-limit');
+    const productLocationElement = document.querySelector('#product-location');
     const stockWarning = document.querySelector('#stock-warning');
     const warningMessage = document.querySelector('#warning-message');
     const stockError = document.querySelector('#stock-error');
@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.querySelector('#submit-btn');
     const movementForm = document.querySelector('#movement-form');
     
+    // Variable para controlar envíos duplicados
     let formSubmitted = false;
 
     // Función para calcular el valor total
@@ -155,6 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const quantity = parseFloat(quantityInput.value) || 0;
         const unitPrice = parseFloat(unitPriceInput.value) || 0;
         
+        // Validar valores negativos
         if (quantity < 0 || unitPrice < 0) {
             totalValueElement.textContent = 'Error: Valores negativos';
             totalValueElement.style.color = '#dc3545';
@@ -162,65 +164,66 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         const total = quantity * unitPrice;
-        totalValueElement.textContent = '$' + total.toLocaleString('es-VE', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
+        totalValueElement.textContent = '$' + total.toFixed(2);
         totalValueElement.style.color = '#0d6efd';
     }
 
-   // Función para cargar información del producto
-function loadProductInfo(productId) {
-    if (!productId) {
-        productInfo.style.display = 'none';
-        return;
-    }
-
-    // Usar la API correcta
-    fetch(`{% url 'movements:product_info_api' 0 %}`.replace('0', productId))
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Error en la respuesta de la API');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                currentStockElement.textContent = data.current_stock;
-                minStockElement.textContent = data.min_stock;
-                productLocationElement.textContent = data.location;
-                productInfo.style.display = 'block';
-                validateMovement(data.current_stock, data.min_stock);
-            } else {
-                throw new Error(data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error loading product info:', error);
+    // Función para cargar información del producto
+    function loadProductInfo(productId) {
+        if (!productId) {
             productInfo.style.display = 'none';
-            showError('No se pudo cargar la información del producto.');
-        });
-}
+            return;
+        }
+
+        // Usar la API para obtener información del producto
+        fetch(`/api/inventory/products/${productId}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta de la API');
+                }
+                return response.json();
+            })
+            .then(product => {
+                currentStockElement.textContent = product.current_stock;
+                minStockElement.textContent = product.min_stock || 0;
+                productLocationElement.textContent = product.location || '-';
+                productInfo.style.display = 'block';
+
+                // Validar movimientos
+                validateMovement(product.current_stock, product.min_stock || 0);
+            })
+            .catch(error => {
+                console.error('Error loading product info:', error);
+                productInfo.style.display = 'none';
+                
+                // Mostrar mensaje de error
+                showError('No se pudo cargar la información del producto. Por favor, recargue la página.');
+            });
+    }
 
     // Función para validar movimientos
     function validateMovement(currentStock, minStock) {
         const quantity = parseFloat(quantityInput.value) || 0;
         
+        // Ocultar mensajes anteriores
         stockWarning.style.display = 'none';
         stockError.style.display = 'none';
         submitBtn.disabled = false;
         
         if (movementTypeSelect.value === 'OUT') {
+            // Validar que la salida no deje stock negativo
             if (quantity > currentStock) {
-                errorMessage.textContent = `Stock insuficiente. Máximo disponible: ${currentStock}`;
+                errorMessage.textContent = `Stock insuficiente. No puede sacar ${quantity} unidades. Stock actual: ${currentStock}`;
                 stockError.style.display = 'block';
                 submitBtn.disabled = true;
                 return false;
             }
             
+            // Validar que no quede por debajo del mínimo configurado
             if (currentStock - quantity < minStock) {
-                warningMessage.textContent = `Alerta: Stock quedará bajo mínimo (${minStock})`;
+                warningMessage.textContent = `Alerta: El stock quedará por debajo del mínimo (${minStock}) después de esta salida`;
                 stockWarning.style.display = 'block';
+                submitBtn.disabled = false; // Permitir pero advertir
                 return true;
             }
         }
@@ -228,70 +231,95 @@ function loadProductInfo(productId) {
         return true;
     }
 
+    // Mostrar error
     function showError(message) {
         errorMessage.textContent = message;
         stockError.style.display = 'block';
         submitBtn.disabled = true;
     }
 
-    // Prevenir doble envío y validar
+    // Prevenir doble envío del formulario y validar stock
     movementForm.addEventListener('submit', function(e) {
+        // Validar que los campos requeridos estén completos
         if (!productSelect.value || !quantityInput.value || !unitPriceInput.value) {
             e.preventDefault();
-            alert('Complete todos los campos requeridos.');
+            alert('Por favor, complete todos los campos requeridos.');
             return;
         }
         
+        // Validación de cantidad
         const quantity = parseFloat(quantityInput.value);
-        const unitPrice = parseFloat(unitPriceInput.value);
-        
         if (quantity <= 0) {
             e.preventDefault();
             alert('La cantidad debe ser mayor a cero.');
             return;
         }
         
+        // Validación de precio
+        const unitPrice = parseFloat(unitPriceInput.value);
         if (unitPrice < 0) {
             e.preventDefault();
             alert('El precio unitario no puede ser negativo.');
             return;
         }
         
+        // Validación específica para salidas
         if (movementTypeSelect.value === 'OUT') {
             const currentStock = parseInt(currentStockElement.textContent) || 0;
+            
+            // Prevenir stock negativo - VALIDACIÓN CRÍTICA
             if (quantity > currentStock) {
                 e.preventDefault();
-                alert(`ERROR: Stock insuficiente. Disponible: ${currentStock}`);
+                alert(`ERROR: No puede sacar ${quantity} unidades. Stock disponible: ${currentStock}`);
                 return;
             }
         }
         
+        // Prevenir doble envío
         if (formSubmitted) {
             e.preventDefault();
-            alert('El formulario ya está siendo procesado.');
+            alert('El formulario ya está siendo procesado. Por favor, espere.');
             return;
         }
         
+        // Marcar formulario como enviado
         formSubmitted = true;
+        
+        // Deshabilitar botón y mostrar indicador de carga
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+        
+        // Permitir que el formulario se envíe normalmente
     });
 
     // Event listeners
-    quantityInput.addEventListener('input', calculateTotal);
+    quantityInput.addEventListener('input', function() {
+        calculateTotal();
+        if (productSelect.value) {
+            // Recargar validación cuando cambia la cantidad
+            loadProductInfo(productSelect.value);
+        }
+    });
+    
     unitPriceInput.addEventListener('input', calculateTotal);
+    
     productSelect.addEventListener('change', function() {
         calculateTotal();
         loadProductInfo(this.value);
     });
+
     movementTypeSelect.addEventListener('change', function() {
         calculateTotal();
-        if (productSelect.value) loadProductInfo(productSelect.value);
+        if (productSelect.value) {
+            loadProductInfo(productSelect.value);
+        }
     });
 
     // Inicializar
     calculateTotal();
-    if (productSelect.value) loadProductInfo(productSelect.value);
+    if (productSelect.value) {
+        loadProductInfo(productSelect.value);
+    }
 });
 </script>
 

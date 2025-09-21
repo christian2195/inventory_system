@@ -14,11 +14,6 @@ class MovementForm(forms.ModelForm):
             'observations': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Asegurar que la cantidad sea al menos 1
-        self.fields['quantity'].validators.append(forms.IntegerField(min_value=1).validators[0])
-    
     def clean(self):
         cleaned_data = super().clean()
         movement_type = cleaned_data.get('movement_type')
