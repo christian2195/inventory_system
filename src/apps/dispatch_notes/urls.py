@@ -11,5 +11,7 @@ urlpatterns = [
     path('editar/<int:pk>/', views.DispatchNoteUpdateView.as_view(), name='update'),
     path('imprimir/<int:pk>/', views.DispatchNotePrintView.as_view(), name='print'),
     path('despachar/<int:pk>/', views.dispatch_note_confirm, name='confirm_dispatch'),
+    #path('products/<int:pk>/', views.ProductDetailAPIView.as_view(), name='product-detail-api'),
     path('api/product-search/', views.product_search_api, name='product_search_api'),
+    
 ]

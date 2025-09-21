@@ -131,196 +131,172 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const productSelect = document.querySelector('#id_product');
-    const quantityInput = document.querySelector('#id_quantity');
-    const unitPriceInput = document.querySelector('#id_unit_price');
-    const movementTypeSelect = document.querySelector('#id_movement_type');
-    const totalValueElement = document.querySelector('#total-value');
-    const productInfo = document.querySelector('#product-info');
-    const currentStockElement = document.querySelector('#current-stock');
-    const minStockElement = document.querySelector('#min-stock');
-    const productLocationElement = document.querySelector('#product-location');
-    const stockWarning = document.querySelector('#stock-warning');
-    const warningMessage = document.querySelector('#warning-message');
-    const stockError = document.querySelector('#stock-error');
-    const errorMessage = document.querySelector('#error-message');
-    const submitBtn = document.querySelector('#submit-btn');
-    const movementForm = document.querySelector('#movement-form');
+    document.addEventListener('DOMContentLoaded', function() {
+        // Variables de Elementos del DOM
+        const productSelect = document.querySelector('#id_product');
+        const quantityInput = document.querySelector('#id_quantity');
+        const unitPriceInput = document.querySelector('#id_unit_price');
+        const movementTypeSelect = document.querySelector('#id_movement_type');
+        const totalValueElement = document.querySelector('#total-value');
+        const productInfo = document.querySelector('#product-info');
+        const currentStockElement = document.querySelector('#current-stock');
+        const minStockElement = document.querySelector('#min-stock');
+        const productLocationElement = document.querySelector('#product-location');
+        const stockWarning = document.querySelector('#stock-warning');
+        const warningMessage = document.querySelector('#warning-message');
+        const stockError = document.querySelector('#stock-error');
+        const errorMessage = document.querySelector('#error-message');
+        const submitBtn = document.querySelector('#submit-btn');
+        const movementForm = document.querySelector('#movement-form');
+        
+        // Variable para controlar el estado de envío y prevenir duplicados
+        let formSubmitted = false;
     
-    // Variable para controlar envíos duplicados
-    let formSubmitted = false;
-
-    // Función para calcular el valor total
-    function calculateTotal() {
-        const quantity = parseFloat(quantityInput.value) || 0;
-        const unitPrice = parseFloat(unitPriceInput.value) || 0;
-        
-        // Validar valores negativos
-        if (quantity < 0 || unitPrice < 0) {
-            totalValueElement.textContent = 'Error: Valores negativos';
-            totalValueElement.style.color = '#dc3545';
-            return;
+        // Función 1: Calcular el valor total en tiempo real
+        function calculateTotal() {
+            const quantity = parseFloat(quantityInput.value) || 0;
+            const unitPrice = parseFloat(unitPriceInput.value) || 0;
+            
+            // Validar que los valores no sean negativos
+            if (quantity < 0 || unitPrice < 0) {
+                totalValueElement.textContent = 'Error: Valores negativos';
+                totalValueElement.style.color = '#dc3545';
+                return;
+            }
+            
+            const total = quantity * unitPrice;
+            totalValueElement.textContent = '$' + total.toFixed(2);
+            totalValueElement.style.color = '#0d6efd';
         }
-        
-        const total = quantity * unitPrice;
-        totalValueElement.textContent = '$' + total.toFixed(2);
-        totalValueElement.style.color = '#0d6efd';
-    }
-
-    // Función para cargar información del producto
-    function loadProductInfo(productId) {
-        if (!productId) {
-            productInfo.style.display = 'none';
-            return;
-        }
-
-        // Usar la API para obtener información del producto
-        fetch(`/api/inventory/products/${productId}/`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error en la respuesta de la API');
-                }
-                return response.json();
-            })
-            .then(product => {
-                currentStockElement.textContent = product.current_stock;
-                minStockElement.textContent = product.min_stock || 0;
-                productLocationElement.textContent = product.location || '-';
-                productInfo.style.display = 'block';
-
-                // Validar movimientos
-                validateMovement(product.current_stock, product.min_stock || 0);
-            })
-            .catch(error => {
-                console.error('Error loading product info:', error);
+    
+        // Función 2: Cargar información del producto vía API
+        function loadProductInfo(productId) {
+            // Ocultar la información si no hay producto seleccionado
+            if (!productId) {
                 productInfo.style.display = 'none';
+                return;
+            }
+    
+            // Usar la URL de la API de inventario en español
+            fetch(`/api/inventario/products/${productId}/`)
+                .then(response => {
+                    if (!response.ok) {
+                        // Lanza un error si la respuesta no es 200 OK
+                        throw new Error('Error en la respuesta de la API');
+                    }
+                    return response.json();
+                })
+                .then(product => {
+                    // Actualiza el stock y el resto de la información del producto
+                    currentStockElement.textContent = product.current_stock;
+                    minStockElement.textContent = product.min_stock || 0;
+                    productLocationElement.textContent = product.location || '-';
+                    productInfo.style.display = 'block';
+    
+                    // Llama a la validación de stock después de cargar la información
+                    validateMovement(product.current_stock, product.min_stock || 0);
+                })
+                .catch(error => {
+                    console.error('Error loading product info:', error);
+                    productInfo.style.display = 'none';
+                    // Muestra un mensaje de error claro al usuario
+                    showError('No se pudo cargar la información del producto. Recargue la página.');
+                });
+        }
+    
+        // Función 3: Validar el movimiento
+        function validateMovement(currentStock, minStock) {
+            const quantity = parseFloat(quantityInput.value) || 0;
+            
+            // Ocultar mensajes anteriores antes de re-validar
+            stockWarning.style.display = 'none';
+            stockError.style.display = 'none';
+            submitBtn.disabled = false;
+            
+            if (movementTypeSelect.value === 'OUT') {
+                // Validación crítica: evitar stock negativo
+                if (quantity > currentStock) {
+                    errorMessage.textContent = `Stock insuficiente. No puede sacar ${quantity} unidades. Stock actual: ${currentStock}`;
+                    stockError.style.display = 'block';
+                    submitBtn.disabled = true; // Deshabilita el botón de enviar
+                    return false;
+                }
                 
-                // Mostrar mensaje de error
-                showError('No se pudo cargar la información del producto. Por favor, recargue la página.');
-            });
-    }
-
-    // Función para validar movimientos
-    function validateMovement(currentStock, minStock) {
-        const quantity = parseFloat(quantityInput.value) || 0;
-        
-        // Ocultar mensajes anteriores
-        stockWarning.style.display = 'none';
-        stockError.style.display = 'none';
-        submitBtn.disabled = false;
-        
-        if (movementTypeSelect.value === 'OUT') {
-            // Validar que la salida no deje stock negativo
-            if (quantity > currentStock) {
-                errorMessage.textContent = `Stock insuficiente. No puede sacar ${quantity} unidades. Stock actual: ${currentStock}`;
-                stockError.style.display = 'block';
-                submitBtn.disabled = true;
-                return false;
+                // Advertencia: si la salida deja el stock por debajo del mínimo
+                if (currentStock - quantity < minStock) {
+                    warningMessage.textContent = `Alerta: El stock quedará por debajo del mínimo (${minStock}) después de esta salida`;
+                    stockWarning.style.display = 'block';
+                    submitBtn.disabled = false; // Permite el envío, pero con advertencia
+                    return true;
+                }
             }
             
-            // Validar que no quede por debajo del mínimo configurado
-            if (currentStock - quantity < minStock) {
-                warningMessage.textContent = `Alerta: El stock quedará por debajo del mínimo (${minStock}) después de esta salida`;
-                stockWarning.style.display = 'block';
-                submitBtn.disabled = false; // Permitir pero advertir
-                return true;
+            return true;
+        }
+    
+        // Función 4: Mostrar un error
+        function showError(message) {
+            errorMessage.textContent = message;
+            stockError.style.display = 'block';
+            submitBtn.disabled = true;
+        }
+    
+        // Prevenir doble envío y validar al enviar el formulario
+        movementForm.addEventListener('submit', function(e) {
+            // Validación inicial de campos antes de procesar
+            if (!productSelect.value || !quantityInput.value || !unitPriceInput.value) {
+                e.preventDefault();
+                alert('Por favor, complete todos los campos requeridos.');
+                return;
             }
-        }
-        
-        return true;
-    }
-
-    // Mostrar error
-    function showError(message) {
-        errorMessage.textContent = message;
-        stockError.style.display = 'block';
-        submitBtn.disabled = true;
-    }
-
-    // Prevenir doble envío del formulario y validar stock
-    movementForm.addEventListener('submit', function(e) {
-        // Validar que los campos requeridos estén completos
-        if (!productSelect.value || !quantityInput.value || !unitPriceInput.value) {
-            e.preventDefault();
-            alert('Por favor, complete todos los campos requeridos.');
-            return;
-        }
-        
-        // Validación de cantidad
-        const quantity = parseFloat(quantityInput.value);
-        if (quantity <= 0) {
-            e.preventDefault();
-            alert('La cantidad debe ser mayor a cero.');
-            return;
-        }
-        
-        // Validación de precio
-        const unitPrice = parseFloat(unitPriceInput.value);
-        if (unitPrice < 0) {
-            e.preventDefault();
-            alert('El precio unitario no puede ser negativo.');
-            return;
-        }
-        
-        // Validación específica para salidas
-        if (movementTypeSelect.value === 'OUT') {
+            
+            const quantity = parseFloat(quantityInput.value);
+            if (quantity <= 0) {
+                e.preventDefault();
+                alert('La cantidad debe ser mayor a cero.');
+                return;
+            }
+            
+            const unitPrice = parseFloat(unitPriceInput.value);
+            if (unitPrice < 0) {
+                e.preventDefault();
+                alert('El precio unitario no puede ser negativo.');
+                return;
+            }
+            
+            // Re-validación del stock
             const currentStock = parseInt(currentStockElement.textContent) || 0;
-            
-            // Prevenir stock negativo - VALIDACIÓN CRÍTICA
-            if (quantity > currentStock) {
+            if (movementTypeSelect.value === 'OUT' && quantity > currentStock) {
                 e.preventDefault();
                 alert(`ERROR: No puede sacar ${quantity} unidades. Stock disponible: ${currentStock}`);
                 return;
             }
-        }
-        
-        // Prevenir doble envío
-        if (formSubmitted) {
-            e.preventDefault();
-            alert('El formulario ya está siendo procesado. Por favor, espere.');
-            return;
-        }
-        
-        // Marcar formulario como enviado
-        formSubmitted = true;
-        
-        // Deshabilitar botón y mostrar indicador de carga
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-        
-        // Permitir que el formulario se envíe normalmente
-    });
-
-    // Event listeners
-    quantityInput.addEventListener('input', function() {
-        calculateTotal();
-        if (productSelect.value) {
-            // Recargar validación cuando cambia la cantidad
-            loadProductInfo(productSelect.value);
-        }
-    });
+            
+            // Prevención de doble envío: la lógica más importante aquí
+            if (formSubmitted) {
+                e.preventDefault();
+                alert('El formulario ya está siendo procesado. Por favor, espere.');
+                return;
+            }
+            
+            // Marcar formulario como enviado y deshabilitar botón
+            formSubmitted = true;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+        });
     
-    unitPriceInput.addEventListener('input', calculateTotal);
+        // Event listeners para actualizar la UI en tiempo real
+        quantityInput.addEventListener('input', () => { calculateTotal(); loadProductInfo(productSelect.value); });
+        unitPriceInput.addEventListener('input', calculateTotal);
+        productSelect.addEventListener('change', () => { calculateTotal(); loadProductInfo(productSelect.value); });
+        movementTypeSelect.addEventListener('change', () => { calculateTotal(); loadProductInfo(productSelect.value); });
     
-    productSelect.addEventListener('change', function() {
-        calculateTotal();
-        loadProductInfo(this.value);
-    });
-
-    movementTypeSelect.addEventListener('change', function() {
+        // Lógica de inicialización al cargar la página
         calculateTotal();
         if (productSelect.value) {
             loadProductInfo(productSelect.value);
         }
     });
-
-    // Inicializar
-    calculateTotal();
-    if (productSelect.value) {
-        loadProductInfo(productSelect.value);
-    }
-});
 </script>
 
 <style>

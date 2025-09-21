@@ -236,3 +236,23 @@ def product_info_api(request, product_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+def product_detail_api(request, pk):
+    """
+    Vista de API para obtener los detalles de un producto en formato JSON.
+    """
+    if request.method == 'GET':
+        try:
+            product = get_object_or_404(Product, pk=pk)
+            data = {
+                'current_stock': product.current_stock,
+                'min_stock': product.min_stock,
+                'location': product.location,
+            }
+            return JsonResponse(data)
+        except Exception as e:
+            # Manejo de errores en caso de que algo salga mal en la base de datos o el modelo
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        # Devuelve un error si no es un método GET
+        return JsonResponse({'error': 'Método no permitido'}, status=405)

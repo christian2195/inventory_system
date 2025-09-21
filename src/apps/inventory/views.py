@@ -175,3 +175,24 @@ def request_replenishment(request, pk):
         messages.error(request, f'Error al enviar la solicitud: {str(e)}')
     
     return redirect('inventory:detail', pk=product.pk)
+
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from .models import Product
+
+def product_detail_api(request, pk):
+    """
+    Vista de API que devuelve los detalles de un producto en formato JSON.
+    Se utiliza para cargar dinámicamente la información del producto en el formulario de movimiento.
+    """
+    if request.method == 'GET':
+        product = get_object_or_404(Product, pk=pk)
+        data = {
+            'current_stock': product.current_stock,
+            'min_stock': product.min_stock,
+            'location': product.location,
+        }
+        return JsonResponse(data)
+    else:
+        # Si no es una solicitud GET, devuelve un error 405 (Método no permitido)
+        return JsonResponse({'error': 'Método no permitido'}, status=405)

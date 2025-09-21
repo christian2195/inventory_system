@@ -24,14 +24,13 @@ urlpatterns = [
     path('notas-recepcion/', include('apps.reception_notes.urls')),
     
     # URLs de la aplicación web
-    path('inventario/', include('apps.inventory.urls')),
+    path('inventario/', include('apps.inventory.urls', namespace='inventory')),
     path('cotizaciones/', include('apps.quotations.urls')),
     path('pedidos/', include('apps.orders.urls')),
     path('movimientos/', include('apps.movements.urls')),
     path('devoluciones/', include('apps.returns.urls')),
     path('accounts/', include('apps.users.urls')),
     path('notas-despacho/', include('apps.dispatch_notes.urls')),
-    
     # URLs de utilidades y error
 
     path('404/', views.page_not_found, name='404'),
