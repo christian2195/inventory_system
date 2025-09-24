@@ -13,5 +13,7 @@ urlpatterns = [
     path('despachar/<int:pk>/', views.dispatch_note_confirm, name='confirm_dispatch'),
     #path('products/<int:pk>/', views.ProductDetailAPIView.as_view(), name='product-detail-api'),
     path('api/product-search/', views.product_search_api, name='product_search_api'),
+    path('cancelar/<int:pk>/', views.dispatch_note_cancel, name='cancel_dispatch'),
+    path('api/client-data/<int:client_id>/', views.client_data_api, name='client_data_api'),
     
 ]
