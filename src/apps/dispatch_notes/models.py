@@ -4,6 +4,8 @@ from django.utils import timezone
 from apps.inventory.models import Product, Client, Supplier
 from django.contrib.auth.models import User
 from django.db.models import F
+import random
+import string
 
 class DispatchNote(models.Model):
     DISPATCH_STATUS_CHOICES = [
@@ -12,7 +14,8 @@ class DispatchNote(models.Model):
         ('CANCELLED', 'Cancelado'),
     ]
 
-    dispatch_number = models.CharField(max_length=50, unique=True, verbose_name="Número de Despacho")
+    # Cambiar a blank=True para generación automática
+    dispatch_number = models.CharField(max_length=50, unique=True, verbose_name="Número de Despacho", blank=True)
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
     beneficiary = models.CharField(max_length=200, blank=True, verbose_name="Nombre del Beneficiario")
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Proveedor")
@@ -23,7 +26,7 @@ class DispatchNote(models.Model):
     notes = models.TextField(blank=True, verbose_name="Observaciones")
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0, editable=False, verbose_name="Total")
     
-    # Nuevos campos del PDF
+    # Campos del transporte
     driver_name = models.CharField(max_length=100, blank=True, verbose_name="Nombre del Conductor")
     driver_id = models.CharField(max_length=20, blank=True, verbose_name="C.I. del Conductor")
     vehicle_type = models.CharField(max_length=100, blank=True, verbose_name="Tipo de Vehículo")
@@ -38,6 +41,28 @@ class DispatchNote(models.Model):
     def __str__(self):
         return f'Nota de Despacho #{self.dispatch_number}'
 
+    def save(self, *args, **kwargs):
+        # Generar número automático si no existe
+        if not self.dispatch_number:
+            self.dispatch_number = self.generate_dispatch_number()
+        super().save(*args, **kwargs)
+
+    def generate_dispatch_number(self):
+        """Genera un número de despacho automático con formato ND-YYYYMMDD-XXXX"""
+        date_str = timezone.now().strftime('%Y%m%d')
+        
+        # Contar despachos del día
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timezone.timedelta(days=1)
+        
+        today_count = DispatchNote.objects.filter(
+            dispatch_date__gte=today_start,
+            dispatch_date__lt=today_end
+        ).count()
+        
+        sequence = today_count + 1
+        return f"ND-{date_str}-{sequence:04d}"
+
 class DispatchItem(models.Model):
     dispatch_note = models.ForeignKey(DispatchNote, related_name='items', on_delete=models.CASCADE, verbose_name="Nota de Despacho")
     product = models.ForeignKey(Product, on_delete=models.CASCADE, verbose_name="Producto")
@@ -51,7 +76,6 @@ class DispatchItem(models.Model):
         verbose_name = "Artículo de Despacho"
         verbose_name_plural = "Artículos de Despacho"
 
-    # ESTE MÉTODO save DEBE ESTAR DENTRO DE LA CLASE (CORREGIR INDENTACIÓN)
     def save(self, *args, **kwargs):
         if self.unit_price and self.quantity:
             self.subtotal = self.quantity * self.unit_price

@@ -10,11 +10,12 @@ from django.template.loader import render_to_string
 from weasyprint import HTML
 from .models import DispatchNote, DispatchItem
 from .forms import DispatchNoteForm, DispatchItemFormSet
-from apps.inventory.models import Product
+from apps.inventory.models import Product, Client, Supplier
 from django.db.models import F
 from django.contrib import messages
 from django.db.models import Q
-
+from django.utils import timezone
+from django.db import models  # Para usar models.Sum en las estadísticas
 
 # Vistas de la interfaz de usuario
 class DispatchNoteListView(LoginRequiredMixin, ListView):
@@ -24,7 +25,46 @@ class DispatchNoteListView(LoginRequiredMixin, ListView):
     paginate_by = 15
     
     def get_queryset(self):
-        return super().get_queryset().prefetch_related('items').order_by('-dispatch_date')
+        queryset = super().get_queryset().prefetch_related('items').order_by('-dispatch_date')
+        
+        # Filtros
+        search_query = self.request.GET.get('q')
+        status_filter = self.request.GET.get('status')
+        date_filter = self.request.GET.get('date')
+        
+        if search_query:
+            queryset = queryset.filter(
+                Q(dispatch_number__icontains=search_query) |
+                Q(client__name__icontains=search_query) |
+                Q(beneficiary__icontains=search_query) |
+                Q(driver_name__icontains=search_query)
+            )
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+            
+        if date_filter:
+            queryset = queryset.filter(dispatch_date__date=date_filter)
+            
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Estadísticas para las tarjetas
+        total_dispatches = DispatchNote.objects.count()
+        pending_count = DispatchNote.objects.filter(status='PENDING').count()
+        completed_count = DispatchNote.objects.filter(status='DISPATCHED').count()
+        total_value = DispatchNote.objects.aggregate(total=models.Sum('total'))['total'] or 0
+        
+        context.update({
+            'total_dispatches': total_dispatches,
+            'pending_count': pending_count,
+            'completed_count': completed_count,
+            'total_value': total_value,
+        })
+        
+        return context
 
 class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
     model = DispatchNote
@@ -38,6 +78,11 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
             context['formset'] = DispatchItemFormSet(self.request.POST)
         else:
             context['formset'] = DispatchItemFormSet()
+        
+        # Agregar clientes y proveedores para el template
+        context['clients'] = Client.objects.filter(is_active=True)
+        context['suppliers'] = Supplier.objects.filter(is_active=True)
+        
         return context
 
     def post(self, request, *args, **kwargs):
@@ -70,11 +115,6 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                         print(f"Cleaned data: {item_form.cleaned_data}")
                     else:
                         print("Cleaned data: Not available")
-                    
-                    # Debug específico de campos
-                    for field_name, field in item_form.fields.items():
-                        field_value = item_form[field_name].value()
-                        print(f"Field {field_name}: {field_value}")
         
         # Si el formset no es válido, retornar error
         if not formset.is_valid():
@@ -85,6 +125,9 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
             with transaction.atomic():
                 self.object = form.save(commit=False)
                 self.object.created_by = self.request.user
+                self.object.dispatch_date = timezone.now()  # Establecer fecha actual
+                
+                # El número se generará automáticamente en el save() del modelo
                 self.object.save()
 
                 # DEBUG: Mostrar lo que se va a guardar
@@ -104,12 +147,17 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                         continue
                         
                     item.dispatch_note = self.object
+                    
+                    # Si no hay precio unitario, usar el del producto
+                    if not item.unit_price and hasattr(item.product, 'unit_price'):
+                        item.unit_price = item.product.unit_price
+                    
                     item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
                     print(f"Subtotal: {item.subtotal}")
                     item.save()
                     print(f"✅ Item guardado con ID: {item.id}")
                 
-                # Guarda los elementos eliminados
+                # Guardar los elementos eliminados
                 for obj in formset.deleted_objects:
                     print(f"🗑️  Eliminando objeto: {obj}")
                     obj.delete()
@@ -119,6 +167,7 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
                 self.object.total = total
                 self.object.save()
                 print(f"💰 Total guardado: {self.object.total}")
+                print(f"🔢 Número de despacho generado: {self.object.dispatch_number}")
                 
         except Exception as e:
             print(f"❌ Error durante el guardado: {str(e)}")
@@ -134,7 +183,12 @@ class DispatchNoteCreateView(LoginRequiredMixin, CreateView):
         print("=== FORM INVALID ===")
         print(f"Form errors: {form.errors}")
         print(f"Formset errors: {formset.errors}")
+        
+        # Agregar clientes y proveedores al contexto incluso en caso de error
         context = self.get_context_data(form=form, formset=formset)
+        context['clients'] = Client.objects.filter(is_active=True)
+        context['suppliers'] = Supplier.objects.filter(is_active=True)
+        
         return self.render_to_response(context)
 
 class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
@@ -149,6 +203,11 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
             context['formset'] = DispatchItemFormSet(self.request.POST, instance=self.object)
         else:
             context['formset'] = DispatchItemFormSet(instance=self.object)
+        
+        # Agregar clientes y proveedores para el template
+        context['clients'] = Client.objects.filter(is_active=True)
+        context['suppliers'] = Supplier.objects.filter(is_active=True)
+        
         return context
 
     def post(self, request, *args, **kwargs):
@@ -156,6 +215,12 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
         print("POST data keys:", list(request.POST.keys()))
         
         self.object = self.get_object()
+        
+        # No permitir edición si ya está despachado
+        if self.object.status == 'DISPATCHED':
+            messages.error(request, "No se puede editar una nota de despacho ya despachada.")
+            return redirect('dispatch_notes:detail', pk=self.object.pk)
+        
         form = self.get_form()
         formset = DispatchItemFormSet(self.request.POST, instance=self.object)
 
@@ -190,6 +255,11 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
             
             for item in items_to_save:
                 item.dispatch_note = self.object
+                
+                # Si no hay precio unitario, usar el del producto
+                if not item.unit_price and hasattr(item.product, 'unit_price'):
+                    item.unit_price = item.product.unit_price
+                
                 item.subtotal = item.quantity * (item.unit_price if item.unit_price else 0)
                 item.save()
             
@@ -208,7 +278,12 @@ class DispatchNoteUpdateView(LoginRequiredMixin, UpdateView):
         print("=== FORM INVALID ===")
         print(f"Form errors: {form.errors}")
         print(f"Formset errors: {formset.errors}")
+        
+        # Agregar clientes y proveedores al contexto incluso en caso de error
         context = self.get_context_data(form=form, formset=formset)
+        context['clients'] = Client.objects.filter(is_active=True)
+        context['suppliers'] = Supplier.objects.filter(is_active=True)
+        
         return self.render_to_response(context)
     
 class DispatchNoteDetailView(LoginRequiredMixin, DetailView):
@@ -217,12 +292,7 @@ class DispatchNoteDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'dispatch_note'
     
     def get_queryset(self):
-        return super().get_queryset().select_related('client', 'created_by').prefetch_related('items__product')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items.select_related('product')
-        return context
+        return super().get_queryset().select_related('client', 'created_by', 'supplier').prefetch_related('items__product')
 
 
 class DispatchNotePrintView(LoginRequiredMixin, DetailView):
@@ -258,8 +328,18 @@ def dispatch_note_confirm(request, pk):
                     # 2. Descontar el stock de cada producto
                     for item in dispatch_note.items.all():
                         product = item.product
-                        # Utilizamos F() para evitar condiciones de carrera y asegurar la atomicidad
-                        Product.objects.filter(pk=product.pk).update(current_stock=F('current_stock') - item.quantity)
+                        # Verificar stock suficiente
+                        if product.current_stock < item.quantity:
+                            messages.warning(
+                                request, 
+                                f"Stock insuficiente para {product.description}. Stock actual: {product.current_stock}, solicitado: {item.quantity}"
+                            )
+                            continue
+                            
+                        # Utilizamos F() para evitar condiciones de carrera
+                        Product.objects.filter(pk=product.pk).update(
+                            current_stock=F('current_stock') - item.quantity
+                        )
                         
                     messages.success(request, f"La Nota de Despacho #{dispatch_note.dispatch_number} ha sido confirmada como 'Despachada'.")
             except Exception as e:
@@ -269,8 +349,22 @@ def dispatch_note_confirm(request, pk):
             messages.warning(request, "Esta nota de despacho ya ha sido despachada o cancelada.")
     
     return redirect('dispatch_notes:detail', pk=pk)
+
+# Vista para cancelar despacho
+def dispatch_note_cancel(request, pk):
+    dispatch_note = get_object_or_404(DispatchNote, pk=pk)
     
-# API para búsqueda de productos - VERSIÓN CORREGIDA
+    if request.method == 'POST':
+        if dispatch_note.status == 'PENDING':
+            dispatch_note.status = 'CANCELLED'
+            dispatch_note.save()
+            messages.success(request, f"Nota de Despacho #{dispatch_note.dispatch_number} cancelada exitosamente.")
+        else:
+            messages.warning(request, "Solo se pueden cancelar notas de despacho pendientes.")
+    
+    return redirect('dispatch_notes:detail', pk=pk)
+    
+# API para búsqueda de productos
 def product_search_api(request):
     try:
         product_id = request.GET.get('id')
@@ -280,8 +374,8 @@ def product_search_api(request):
         print(f"DEBUG API: id={product_id}, q={query}, all={all_products}")
         
         if all_products:
-            # Devolver todos los productos para la interfaz tipo Odoo
-            products = Product.objects.all()[:50]  # Limitar a 50 para no sobrecargar
+            # Devolver todos los productos activos
+            products = Product.objects.filter(is_active=True)[:50]  # Limitar a 50
             products_data = []
             for product in products:
                 product_data = {
@@ -292,7 +386,7 @@ def product_search_api(request):
                     'current_stock': getattr(product, 'current_stock', 0)
                 }
                 
-                # Campos opcionales - solo incluir si existen en el modelo
+                # Campos opcionales
                 if hasattr(product, 'brand'):
                     product_data['brand'] = product.brand
                 if hasattr(product, 'model'):
@@ -306,10 +400,9 @@ def product_search_api(request):
             return JsonResponse(products_data, safe=False)
         
         elif product_id:
-            # VERIFICAR SI ES UN NÚMERO VÁLIDO
             try:
                 product_id_int = int(product_id)
-                product = Product.objects.filter(pk=product_id_int).first()
+                product = Product.objects.filter(pk=product_id_int, is_active=True).first()
                 products_data = []
                 
                 if product:
@@ -334,10 +427,10 @@ def product_search_api(request):
                 print(f"Search by ID {product_id_int}: Found {len(products_data)} products")
                 return JsonResponse(products_data, safe=False)
             except (ValueError, TypeError):
-                # Si no es un número, buscar por código de producto
-                print(f"Search by code/description: {product_id}")
+                # Buscar por código o descripción
                 products = Product.objects.filter(
-                    Q(product_code__iexact=product_id) | Q(description__icontains=product_id)
+                    Q(product_code__iexact=product_id) | Q(description__icontains=product_id),
+                    is_active=True
                 )[:1]
                 products_data = []
                 for product in products:
@@ -349,23 +442,15 @@ def product_search_api(request):
                         'current_stock': getattr(product, 'current_stock', 0)
                     }
                     
-                    # Campos opcionales
-                    if hasattr(product, 'brand'):
-                        product_data['brand'] = product.brand
-                    if hasattr(product, 'model'):
-                        product_data['model'] = product.model
-                    if hasattr(product, 'category'):
-                        product_data['category'] = str(product.category) if product.category else ''
-                    
                     products_data.append(product_data)
                     
                 return JsonResponse(products_data, safe=False)
         
         elif query:
             # Búsqueda por texto
-            print(f"Search by query: {query}")
             products = Product.objects.filter(
-                Q(product_code__icontains=query) | Q(description__icontains=query)
+                Q(product_code__icontains=query) | Q(description__icontains=query),
+                is_active=True
             )[:10]
             products_data = []
             for product in products:
@@ -400,3 +485,18 @@ def product_search_api(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+# API para obtener datos de cliente
+def client_data_api(request, client_id):
+    try:
+        client = get_object_or_404(Client, pk=client_id)
+        data = {
+            'id': client.id,
+            'name': client.name,
+            'phone': client.phone,
+            'email': client.email,
+            'address': client.address,
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=404)

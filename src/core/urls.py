@@ -31,6 +31,7 @@ urlpatterns = [
     path('devoluciones/', include('apps.returns.urls')),
     path('accounts/', include('apps.users.urls')),
     path('notas-despacho/', include('apps.dispatch_notes.urls')),
+    path('users/', include('apps.users.urls', namespace='users')),
     # URLs de utilidades y error
 
     path('404/', views.page_not_found, name='404'),

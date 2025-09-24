@@ -8,7 +8,7 @@ class DispatchNoteForm(forms.ModelForm):
     class Meta:
         model = DispatchNote
         fields = [
-            'dispatch_number', 
+            #'dispatch_number', 
             'client', 
             'beneficiary',
             'supplier',
